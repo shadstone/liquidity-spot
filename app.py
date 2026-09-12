@@ -87,6 +87,12 @@ def create_app(config_name='default'):
             'bob_locked': ('Alice', 'verify BTC and claim BTC'),
             'alice_claimed': ('Bob', 'claim HNS'),
         }
+        p2p_next_steps = {
+            'matched': 'confirm the trade plan',
+            'payment_sent': 'verify the first transfer',
+            'payment_received': 'send or release the other side',
+            'released': 'verify both sides and complete',
+        }
 
         for trade in trades:
             state = state_by_trade_id.get(trade.id)
@@ -112,15 +118,19 @@ def create_app(config_name='default'):
 
             if trade.status not in final_trade_statuses:
                 if trade.offer.side == 'sell':
-                    current_role = 'Alice' if trade.creator_id == user_id else 'Bob'
+                    is_hns_seller = trade.creator_id == user_id
                 else:
-                    current_role = 'Bob' if trade.creator_id == user_id else 'Alice'
+                    is_hns_seller = trade.creator_id != user_id
+                role_label = 'HNS seller' if is_hns_seller else 'HNS buyer'
+                send_asset = 'HNS' if is_hns_seller else 'BTC'
+                next_step = p2p_next_steps.get(trade.milestone, 'review the room')
                 hellobar_items.append({
                     'kind': 'P2P',
                     'label': f'P2P Trade #{trade.id}',
-                    'detail': f'{trade.status} / {trade.milestone} | You are {current_role}',
+                    'detail': f'Next: {next_step} | You are the {role_label} and send {send_asset}',
                     'href': url_for('main.p2p_trade_room', trade_id=trade.id),
                     'priority': 1,
+                    'user_is_next': False,
                 })
 
         for swap in swaps:

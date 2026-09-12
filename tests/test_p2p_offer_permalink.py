@@ -98,6 +98,46 @@ class P2POfferPermalinkTests(unittest.TestCase):
         self.assertIn('Offer matched', body)
         self.assertIn('Enter Trade Room', body)
 
+    def test_trade_room_explains_each_partys_assets_and_safe_first_step(self):
+        buyer = self.app.test_client()
+        self._post_buy_offer(buyer)
+        seller = self.app.test_client()
+        seller.post('/p2p/offers/1/accept')
+
+        buyer_room = buyer.get('/p2p/trades/1', base_url='https://liquidity.spot')
+        buyer_body = buyer_room.get_data(as_text=True)
+        self.assertEqual(buyer_room.status_code, 200)
+        self.assertIn('Your role', buyer_body)
+        self.assertIn('HNS buyer', buyer_body)
+        self.assertIn('You send BTC', buyer_body)
+        self.assertIn('Confirm the trade plan together', buyer_body)
+        self.assertIn('Record first payment / lock sent', buyer_body)
+        self.assertIn('Next: confirm the trade plan', buyer_body)
+
+        seller_room = seller.get('/p2p/trades/1')
+        seller_body = seller_room.get_data(as_text=True)
+        self.assertEqual(seller_room.status_code, 200)
+        self.assertIn('HNS seller', seller_body)
+        self.assertIn('You send HNS', seller_body)
+        self.assertIn('sends HNS, receives BTC', seller_body)
+
+    def test_trade_room_primary_action_follows_the_current_milestone(self):
+        buyer = self.app.test_client()
+        self._post_buy_offer(buyer)
+        seller = self.app.test_client()
+        seller.post('/p2p/offers/1/accept')
+
+        response = buyer.post('/p2p/trades/1/action', base_url='https://liquidity.spot', data={
+            'action': 'mark_payment_sent',
+            'note': 'BTC transfer sent and TXID shared.',
+        }, follow_redirects=True)
+        body = response.get_data(as_text=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('Verify the first transfer', body)
+        self.assertIn('Confirm first payment / lock', body)
+        self.assertIn('BTC transfer sent and TXID shared.', body)
+
     def test_gems_guide_explains_bonds_without_requiring_login(self):
         response = self.app.test_client().get('/gems')
         body = response.get_data(as_text=True)

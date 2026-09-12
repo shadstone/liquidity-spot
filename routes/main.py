@@ -459,6 +459,120 @@ def _p2p_counterparty(trade, user_id):
     return trade.counterparty if user_id == trade.creator_id else trade.creator
 
 
+def _p2p_room_guide(trade, user_id):
+    """Return plain-language, milestone-specific guidance for a P2P room."""
+    alice_user, bob_user = _p2p_trade_parties(trade)
+    is_alice = user_id == alice_user.id
+
+    milestone_guidance = {
+        'matched': {
+            'progress_index': 0,
+            'eyebrow': 'Start here',
+            'title': 'Confirm the trade plan together',
+            'description': (
+                'Use the chat to confirm both wallet addresses, the exact whole-satoshi '
+                'BTC total, who will send first, and how many confirmations you will wait for.'
+            ),
+            'action': 'mark_payment_sent',
+            'action_label': 'Record first payment / lock sent',
+            'action_help': 'Use only after one party has actually sent the first transfer or lock.',
+            'confirmation': 'Has the first payment or lock really been sent? This updates the shared room for both parties.',
+        },
+        'payment_sent': {
+            'progress_index': 1,
+            'eyebrow': 'Next shared step',
+            'title': 'Verify the first transfer',
+            'description': (
+                'The receiving party should verify the address, amount, TXID, and agreed '
+                'confirmations. Ask in chat if anything does not match.'
+            ),
+            'action': 'mark_payment_received',
+            'action_label': 'Confirm first payment / lock',
+            'action_help': 'Use only after the receiving party has independently verified it.',
+            'confirmation': 'Has the receiving party verified the first transfer or lock? This updates the shared room for both parties.',
+        },
+        'payment_received': {
+            'progress_index': 2,
+            'eyebrow': 'Next shared step',
+            'title': 'Send or release the other side',
+            'description': (
+                'The party who still owes HNS or BTC should now complete their agreed transfer. '
+                'Post its TXID or confirmation in the chat.'
+            ),
+            'action': 'mark_released',
+            'action_label': 'Record other side released',
+            'action_help': 'Use only after the second transfer has actually been sent or claimed.',
+            'confirmation': 'Has the other side of the trade really been sent or claimed? This updates the shared room for both parties.',
+        },
+        'released': {
+            'progress_index': 3,
+            'eyebrow': 'Final check',
+            'title': 'Verify both sides are settled',
+            'description': (
+                'Both parties should verify that the expected HNS and BTC arrived. Once there '
+                'is nothing left to send or resolve, close the room as complete.'
+            ),
+            'action': 'mark_completed',
+            'action_label': 'Mark trade complete',
+            'action_help': 'This closes the trade and opens counterparty feedback.',
+            'confirmation': 'Are both parties fully settled, with nothing left to send or resolve?',
+        },
+        'completed': {
+            'progress_index': 4,
+            'eyebrow': 'Trade finished',
+            'title': 'This trade is complete',
+            'description': 'Both sides were recorded as settled. You can leave feedback and download the room record.',
+            'action': None,
+            'action_label': None,
+            'action_help': None,
+            'confirmation': None,
+        },
+    }
+
+    guide = milestone_guidance.get(trade.milestone, milestone_guidance['matched']).copy()
+    guide.update({
+        'role_name': 'HNS seller' if is_alice else 'HNS buyer',
+        'role_code': 'Alice' if is_alice else 'Bob',
+        'counterparty_role_name': 'HNS buyer' if is_alice else 'HNS seller',
+        'counterparty_role_code': 'Bob' if is_alice else 'Alice',
+        'you_send_asset': 'HNS' if is_alice else 'BTC',
+        'you_receive_asset': 'BTC' if is_alice else 'HNS',
+    })
+
+    status_overrides = {
+        'completed': (
+            'Trade finished',
+            'This trade is complete',
+            'Both sides were recorded as settled. You can leave feedback and download the room record.',
+        ),
+        'disputed': (
+            'Room status',
+            'Dispute open',
+            'This room is under review. Keep all relevant facts and TXIDs in the chat record.',
+        ),
+        'canceled': (
+            'Room closed',
+            'Trade canceled',
+            'No further trade steps are available. Download the record if you need it.',
+        ),
+        'no_show': (
+            'Room closed',
+            'Trade closed as a no-show',
+            'No further trade steps are available. The room remains as a record.',
+        ),
+    }
+    if trade.status in status_overrides:
+        guide['eyebrow'], guide['title'], guide['description'] = status_overrides[trade.status]
+        if trade.status == 'completed':
+            guide['progress_index'] = 4
+        guide['action'] = None
+        guide['action_label'] = None
+        guide['action_help'] = None
+        guide['confirmation'] = None
+
+    return guide
+
+
 def _p2p_feedback_stats(user_id):
     feedback = P2PTradeFeedback.query.filter_by(reviewee_id=user_id).all()
     completed_trades = P2PTrade.query.filter(
@@ -1268,6 +1382,7 @@ def p2p_trade_room(trade_id):
         alice_user=alice_user,
         bob_user=bob_user,
         current_role=current_role,
+        room_guide=_p2p_room_guide(trade, session['user_id']),
         my_feedback=my_feedback,
         trade_feedback=trade_feedback,
         counterparty_feedback_stats=_p2p_feedback_stats(counterparty_user.id)
