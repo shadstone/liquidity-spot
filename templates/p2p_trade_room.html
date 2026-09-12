@@ -1,324 +1,371 @@
 {% extends "base.html" %}
 
-{% block title %}P2P Trade Room | Liquidity.spot{% endblock %}
+{% block title %}P2P Trade Room #{{ trade.id }} | Liquidity.spot{% endblock %}
 
 {% set current_user_id = session.get('user_id') %}
 {% set counterparty_user = trade.counterparty if current_user_id == trade.creator_id else trade.creator %}
-{% set can_take_primary_actions = trade.status not in ['completed', 'canceled', 'disputed', 'no_show'] %}
 {% set room_locked = trade.status in ['completed', 'canceled', 'no_show'] %}
 {% set total_btc = trade.offer.amount_hns * trade.offer.price_btc_per_hns %}
+{% set progress_steps = [
+    ('matched', 'Agree'),
+    ('payment_sent', 'First transfer'),
+    ('payment_received', 'Verify'),
+    ('released', 'Other side'),
+    ('completed', 'Complete')
+] %}
 
 {% block content %}
-<div class="mx-auto max-w-6xl space-y-5">
-    <section class="rounded-lg border border-gfa-light/30 bg-black/40 p-5">
-        <div class="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-start">
-            <div class="min-w-0">
-                <p class="text-sm font-bold uppercase tracking-wide text-gfa-light">Trade room #{{ trade.id }}</p>
-                <h1 class="mt-1 text-3xl font-bold text-white">You are trading with {{ counterparty_user.username }}</h1>
-                <p class="mt-2 max-w-3xl text-gfa-grey">
-                    This room is the shared record for one P2P trade. Keep confirmations, TXIDs, questions, and dispute notes here so both parties have the same history.
-                </p>
-                <div class="mt-4 flex flex-wrap gap-2 text-sm">
-                    <span class="rounded border border-gfa-light/30 bg-gfa-light/10 px-3 py-1 font-bold text-gfa-light">Your role: {{ current_role }}</span>
-                    <span class="rounded border border-gfa-grey/20 bg-black/40 px-3 py-1 text-gfa-grey">Status: <strong class="text-white">{{ trade.status }}</strong></span>
-                    <span class="rounded border border-gfa-grey/20 bg-black/40 px-3 py-1 text-gfa-grey">Milestone: <strong class="text-white">{{ trade.milestone }}</strong></span>
-                </div>
-            </div>
+<div class="mx-auto max-w-6xl space-y-5 pb-8">
+    <nav class="flex flex-wrap items-center gap-2 text-sm text-gfa-grey" aria-label="Breadcrumb">
+        <a href="{{ url_for('main.dashboard') }}" class="hover:text-gfa-light">Dashboard</a>
+        <span aria-hidden="true">/</span>
+        <a href="{{ url_for('main.p2p') }}" class="hover:text-gfa-light">P2P trades</a>
+        <span aria-hidden="true">/</span>
+        <span class="text-white">Room #{{ trade.id }}</span>
+    </nav>
 
-            <div class="w-full space-y-3 lg:w-[320px]">
-                {% if can_take_primary_actions %}
-                <form method="POST" action="{{ url_for('main.p2p_trade_action', trade_id=trade.id) }}" onsubmit="return confirmTradeAction(this)" data-confirm="Complete this trade only after both parties are fully settled. Continue?">
-                    <input type="hidden" name="action" value="mark_completed">
-                    <input type="hidden" name="note" value="Marked complete from the trade room header.">
-                    <button type="submit" class="w-full rounded-lg bg-green-500 px-5 py-4 text-lg font-bold text-white transition hover:bg-green-400">
-                        Mark Trade Complete
-                    </button>
-                </form>
-                <form method="POST" action="{{ url_for('main.p2p_trade_action', trade_id=trade.id) }}" onsubmit="return confirmDisputeAction(this)">
-                    <input type="hidden" name="action" value="mark_disputed">
-                    <input type="hidden" name="note" value="">
-                    <button type="submit" class="w-full rounded-lg border border-red-400/60 bg-red-900/70 px-5 py-3 font-bold text-red-100 transition hover:bg-red-800">
-                        Open Dispute
-                    </button>
-                </form>
-                {% else %}
-                <div class="rounded-lg border border-gfa-grey/20 bg-black/50 p-4">
-                    <p class="text-sm font-bold uppercase tracking-wide text-gfa-light">{{ 'Under review' if trade.status == 'disputed' else 'Final status' }}</p>
-                    <p class="mt-1 text-2xl font-bold text-white">{{ trade.status }}</p>
-                    <p class="mt-2 text-sm text-gfa-grey">{{ 'Keep adding messages here for the dispute record.' if trade.status == 'disputed' else 'The room remains available as the trade record.' }}</p>
-                </div>
-                {% endif %}
-
-                <div class="grid grid-cols-2 gap-2">
-                    <a href="{{ url_for('main.p2p_trade_receipt', trade_id=trade.id, file_format='pdf') }}" class="rounded border border-gfa-light/30 bg-gfa-light/10 px-3 py-2 text-center text-sm font-bold text-gfa-light hover:bg-gfa-light/20">
-                        Download PDF
-                    </a>
-                    <a href="{{ url_for('main.p2p_trade_receipt', trade_id=trade.id, file_format='txt') }}" class="rounded border border-gfa-grey/20 bg-black/30 px-3 py-2 text-center text-sm font-bold text-gfa-grey hover:text-white">
-                        Download TXT
-                    </a>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <section class="grid gap-4 md:grid-cols-4">
-        <div class="rounded-lg border border-gfa-grey/20 bg-black/30 p-4">
-            <p class="text-xs font-bold uppercase tracking-wide text-gfa-grey">You</p>
-            <p class="mt-1 text-lg font-bold text-white">{{ session.get('username', 'You') }}</p>
-            <p class="text-sm text-gfa-light">{{ current_role }}</p>
-        </div>
-        <div class="rounded-lg border border-gfa-grey/20 bg-black/30 p-4">
-            <p class="text-xs font-bold uppercase tracking-wide text-gfa-grey">Counterparty</p>
-            <p class="mt-1 text-lg font-bold text-white">{{ counterparty_user.username }}</p>
-            <p class="text-sm text-gfa-grey">{{ 'Bob' if current_role == 'Alice' else 'Alice' }}</p>
-        </div>
-        <div class="rounded-lg border border-gfa-grey/20 bg-black/30 p-4">
-            <p class="text-xs font-bold uppercase tracking-wide text-gfa-grey">Amount</p>
-            <p class="mt-1 text-lg font-bold text-white">{{ trade.offer.amount_hns }} HNS</p>
-            <p class="text-sm text-gfa-grey">{{ '%.12f'|format(total_btc) }} BTC</p>
-        </div>
-        <div class="rounded-lg border border-gfa-grey/20 bg-black/30 p-4">
-            <p class="text-xs font-bold uppercase tracking-wide text-gfa-grey">Terms</p>
-            <p class="mt-1 text-lg font-bold text-white">{{ trade.offer.side|upper }} offer</p>
-            <p class="text-sm text-gfa-grey">{{ trade.offer.payment_method }}</p>
-        </div>
-    </section>
-
-    {% if trade.latest_note %}
-    <section class="rounded-lg border border-gfa-grey/20 bg-black/30 p-4">
-        <p class="text-xs font-bold uppercase tracking-wide text-gfa-grey">Latest room note</p>
-        <p class="mt-2 text-white">{{ trade.latest_note }}</p>
-    </section>
-    {% endif %}
-
-    {% if trade.status == 'completed' %}
-    <section class="rounded-lg border border-gfa-light/40 bg-gfa-light/10 p-5">
-        <div class="grid gap-5 lg:grid-cols-[1fr_340px]">
-            <div>
-                <p class="text-sm font-bold uppercase tracking-wide text-gfa-light">Feedback is open</p>
-                <h2 class="mt-1 text-2xl font-bold text-white">Rate {{ counterparty_user.username }}</h2>
-                <p class="mt-2 text-gfa-grey">
-                    This helps build a long-term reputation trail for guest and GFAVIP accounts. Feedback is tied to this completed trade room.
-                </p>
-            </div>
-            <div class="rounded border border-gfa-grey/20 bg-black/30 p-4">
-                <p class="text-sm text-gfa-grey">Counterparty reputation</p>
-                {% if counterparty_feedback_stats.count %}
-                    <p class="mt-1 text-2xl font-bold text-white">{{ counterparty_feedback_stats.average }}/5</p>
-                    <p class="text-sm text-gfa-grey">
-                        {{ counterparty_feedback_stats.count }} {{ 'rating' if counterparty_feedback_stats.count == 1 else 'ratings' }}
-                        · {{ counterparty_feedback_stats.completed_trades }} completed P2P {{ 'trade' if counterparty_feedback_stats.completed_trades == 1 else 'trades' }}
+    <header class="overflow-hidden rounded-2xl border border-gfa-light/25 bg-black/35 shadow-2xl shadow-black/10">
+        <div class="border-b border-gfa-grey/10 px-5 py-5 md:px-7">
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-2 text-xs font-bold uppercase tracking-wider">
+                        <span class="text-gfa-light">P2P trade room #{{ trade.id }}</span>
+                        <span class="rounded-full border px-2.5 py-1 {{ 'border-red-400/40 bg-red-950/40 text-red-100' if trade.status in ['disputed', 'canceled', 'no_show'] else 'border-gfa-light/30 bg-gfa-light/10 text-gfa-light' }}">
+                            {{ trade.status|replace('_', ' ') }}
+                        </span>
+                    </div>
+                    <h1 class="mt-2 text-2xl font-bold text-white sm:text-3xl">Trade with {{ counterparty_user.username }}</h1>
+                    <p class="mt-2 max-w-3xl text-sm leading-relaxed text-gfa-grey sm:text-base">
+                        One shared workspace for the plan, messages, transaction IDs, and final record. Liquidity.spot coordinates this trade but never holds your HNS or BTC.
                     </p>
-                {% else %}
-                    <p class="mt-1 text-lg font-bold text-white">No ratings yet</p>
-                    <p class="text-sm text-gfa-grey">This may be their first completed trade.</p>
-                {% endif %}
+                </div>
+                <details class="shrink-0 text-sm">
+                    <summary class="cursor-pointer list-none rounded-lg border border-gfa-grey/20 bg-black/25 px-3 py-2 font-bold text-gfa-grey hover:border-gfa-grey/40 hover:text-white">
+                        Receipts &amp; records <span aria-hidden="true">▾</span>
+                    </summary>
+                    <div class="mt-2 grid gap-2 rounded-lg border border-gfa-grey/20 bg-black/80 p-2 shadow-xl">
+                        <a href="{{ url_for('main.p2p_trade_receipt', trade_id=trade.id, file_format='pdf') }}" class="rounded px-3 py-2 text-gfa-light hover:bg-white/5">Download PDF</a>
+                        <a href="{{ url_for('main.p2p_trade_receipt', trade_id=trade.id, file_format='txt') }}" class="rounded px-3 py-2 text-gfa-grey hover:bg-white/5 hover:text-white">Download TXT</a>
+                    </div>
+                </details>
             </div>
         </div>
 
-        <form method="POST" action="{{ url_for('main.submit_p2p_trade_feedback', trade_id=trade.id) }}" class="mt-5 grid gap-4 lg:grid-cols-[220px_1fr_auto] lg:items-end">
-            <div>
-                <label class="mb-1 block text-sm font-bold text-white" for="rating">Rating</label>
-                <select id="rating" name="rating" class="w-full rounded border border-gfa-grey/30 bg-black/50 p-3 text-white" required>
-                    {% for score in [5, 4, 3, 2, 1] %}
-                    <option value="{{ score }}" {{ 'selected' if my_feedback and my_feedback.rating == score else '' }}>{{ score }} / 5</option>
-                    {% endfor %}
-                </select>
+        <div class="grid divide-y divide-gfa-grey/10 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+            <div class="p-5">
+                <p class="text-xs font-bold uppercase tracking-wider text-gfa-grey">Your role</p>
+                <p class="mt-1 text-lg font-bold text-white">{{ room_guide.role_name }}</p>
+                <p class="mt-1 text-sm text-gfa-grey">{{ room_guide.role_code }} · You send {{ room_guide.you_send_asset }}</p>
             </div>
-            <div>
-                <label class="mb-1 block text-sm font-bold text-white" for="feedback-comment">Short note</label>
-                <input id="feedback-comment" name="comment" type="text" maxlength="1000" value="{{ my_feedback.comment if my_feedback else '' }}" class="w-full rounded border border-gfa-grey/30 bg-black/50 p-3 text-white" placeholder="Fast communication, settled as agreed, issue resolved, etc.">
+            <div class="p-5">
+                <p class="text-xs font-bold uppercase tracking-wider text-gfa-grey">You send</p>
+                {% if room_guide.you_send_asset == 'HNS' %}
+                    <p class="mt-1 text-lg font-bold text-white">{{ trade.offer.amount_hns }} HNS</p>
+                {% else %}
+                    <p class="mt-1 break-all text-lg font-bold text-white">{{ '%.12f'|format(total_btc) }} BTC</p>
+                {% endif %}
+                <p class="mt-1 text-sm text-gfa-grey">to {{ counterparty_user.username }}</p>
             </div>
-            <button type="submit" class="rounded bg-gfa-light px-5 py-3 font-bold text-gfa-dark hover:bg-white">
-                {{ 'Update Feedback' if my_feedback else 'Save Feedback' }}
-            </button>
-        </form>
-    </section>
-    {% endif %}
+            <div class="p-5">
+                <p class="text-xs font-bold uppercase tracking-wider text-gfa-grey">You receive</p>
+                {% if room_guide.you_receive_asset == 'HNS' %}
+                    <p class="mt-1 text-lg font-bold text-white">{{ trade.offer.amount_hns }} HNS</p>
+                {% else %}
+                    <p class="mt-1 break-all text-lg font-bold text-white">{{ '%.12f'|format(total_btc) }} BTC</p>
+                {% endif %}
+                <p class="mt-1 text-sm text-gfa-grey">from {{ counterparty_user.username }}</p>
+            </div>
+        </div>
+    </header>
 
-    <div class="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_340px]">
-        <section class="rounded-lg border border-gfa-grey/20 bg-black/30 p-5">
+    <section class="rounded-2xl border {{ 'border-red-400/35 bg-red-950/25' if trade.status in ['disputed', 'canceled', 'no_show'] else 'border-gfa-light/45 bg-gfa-light/10' }} p-5 md:p-7" aria-labelledby="next-step-title">
+        <div class="grid gap-5 lg:grid-cols-[1fr_300px] lg:items-center">
+            <div>
+                <p class="text-xs font-bold uppercase tracking-[0.16em] {{ 'text-red-200' if trade.status in ['disputed', 'canceled', 'no_show'] else 'text-gfa-light' }}">{{ room_guide.eyebrow }}</p>
+                <h2 id="next-step-title" class="mt-1 text-2xl font-bold text-white md:text-3xl">{{ room_guide.title }}</h2>
+                <p class="mt-2 max-w-3xl leading-relaxed text-gfa-grey">{{ room_guide.description }}</p>
+            </div>
+            {% if room_guide.action %}
+            <div>
+                <form method="POST" action="{{ url_for('main.p2p_trade_action', trade_id=trade.id) }}" onsubmit="return confirmTradeAction(this)" data-confirm="{{ room_guide.confirmation }}">
+                    <input type="hidden" name="action" value="{{ room_guide.action }}">
+                    <input type="hidden" name="note" value="Progressed from the guided trade-room step.">
+                    <button type="submit" class="w-full rounded-xl bg-gfa-light px-5 py-3.5 text-base font-bold text-gfa-dark shadow-lg shadow-black/15 transition hover:bg-white focus:outline-none focus:ring-2 focus:ring-white">
+                        {{ room_guide.action_label }}
+                    </button>
+                </form>
+                <p class="mt-2 text-center text-xs leading-relaxed text-gfa-grey">{{ room_guide.action_help }}</p>
+            </div>
+            {% elif trade.status == 'completed' %}
+            <a href="#feedback" class="rounded-xl bg-gfa-light px-5 py-3.5 text-center font-bold text-gfa-dark hover:bg-white">Leave feedback</a>
+            {% elif trade.status == 'disputed' %}
+            <a href="#trade-chat" class="rounded-xl border border-red-300/40 bg-red-950/30 px-5 py-3.5 text-center font-bold text-red-50 hover:bg-red-900/40">Add evidence to chat</a>
+            {% endif %}
+        </div>
+    </section>
+
+    <section class="rounded-xl border border-gfa-grey/15 bg-black/25 p-4 md:p-5" aria-labelledby="progress-title">
+        <div class="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 id="progress-title" class="font-bold text-white">Trade progress</h2>
+            <p class="text-xs text-gfa-grey">Current milestone: {{ trade.milestone|replace('_', ' ') }}</p>
+        </div>
+        <ol class="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-5">
+            {% for key, label in progress_steps %}
+            {% set is_complete = loop.index0 < room_guide.progress_index %}
+            {% set is_current = loop.index0 == room_guide.progress_index %}
+            <li class="flex items-center gap-3 rounded-lg border p-3 sm:block {{ 'border-gfa-light/40 bg-gfa-light/10' if is_current else 'border-gfa-grey/10 bg-black/20' }}" {% if is_current %}aria-current="step"{% endif %}>
+                <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-bold {{ 'border-gfa-light bg-gfa-light text-gfa-dark' if is_complete else 'border-white bg-white text-gfa-dark' if is_current else 'border-gfa-grey/25 text-gfa-grey' }}">
+                    {{ '✓' if is_complete else loop.index }}
+                </span>
+                <span class="text-sm {{ 'font-bold text-white' if is_complete or is_current else 'text-gfa-grey' }} sm:mt-2 sm:block">{{ label }}</span>
+            </li>
+            {% endfor %}
+        </ol>
+    </section>
+
+    <div class="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(300px,0.85fr)]">
+        <section id="trade-chat" class="rounded-2xl border border-gfa-grey/20 bg-black/30 p-5 md:p-6">
             <div class="flex flex-col gap-2 border-b border-gfa-grey/10 pb-4 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                    <h2 class="text-2xl font-bold text-white">Trade Chat And Record</h2>
-                    <p class="mt-1 text-sm text-gfa-grey">Messages are kept with this room and included in the downloadable receipt.</p>
+                    <p class="text-xs font-bold uppercase tracking-wider text-gfa-light">Shared record</p>
+                    <h2 class="mt-1 text-2xl font-bold text-white">Messages with {{ counterparty_user.username }}</h2>
+                    <p class="mt-1 text-sm text-gfa-grey">Anything posted here is visible to both parties and included in the receipt.</p>
                 </div>
-                <p class="text-sm text-gfa-grey">{{ trade.messages|length }} {{ 'message' if trade.messages|length == 1 else 'messages' }}</p>
+                <p class="shrink-0 text-sm text-gfa-grey">{{ trade.messages|length }} {{ 'message' if trade.messages|length == 1 else 'messages' }}</p>
             </div>
 
-            <div class="mt-4 max-h-[520px] space-y-3 overflow-y-auto pr-2">
+            <div class="mt-4 max-h-[560px] space-y-3 overflow-y-auto pr-1" aria-live="polite">
                 {% if trade.messages %}
                     {% for message in trade.messages|sort(attribute='created_at') %}
                     {% set own_message = message.user_id == current_user_id %}
-                    <article class="rounded-lg border {{ 'border-gfa-light/25 bg-gfa-light/10' if own_message else 'border-gfa-grey/10 bg-black/40' }} p-4">
+                    <article class="{{ 'ml-auto border-gfa-light/30 bg-gfa-light/10' if own_message else 'mr-auto border-gfa-grey/15 bg-black/35' }} max-w-[92%] rounded-xl border p-4">
                         <div class="flex flex-col gap-1 text-sm sm:flex-row sm:items-center sm:justify-between">
-                            <span class="font-bold text-white">{{ message.user.username }}{% if own_message %} (you){% endif %}</span>
-                            <span class="text-gfa-grey">{{ message.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                            <span class="font-bold text-white">{{ 'You' if own_message else message.user.username }}</span>
+                            <time class="text-xs text-gfa-grey">{{ message.created_at.strftime('%Y-%m-%d %H:%M') }}</time>
                         </div>
-                        <p class="mt-2 whitespace-pre-wrap text-gfa-grey">{{ message.message }}</p>
+                        <p class="mt-2 whitespace-pre-wrap leading-relaxed text-gfa-grey">{{ message.message }}</p>
                     </article>
                     {% endfor %}
                 {% else %}
-                    <div class="rounded-lg border border-dashed border-gfa-grey/30 bg-black/20 p-6 text-gfa-grey">
-                        No messages yet. Start by confirming the next step with {{ counterparty_user.username }}.
+                    <div class="rounded-xl border border-dashed border-gfa-light/25 bg-gfa-light/5 p-6">
+                        <p class="font-bold text-white">Start with the exact trade plan.</p>
+                        <p class="mt-1 text-sm leading-relaxed text-gfa-grey">Confirm addresses, amounts, who sends first, and the number of confirmations with {{ counterparty_user.username }} before either person sends funds.</p>
                     </div>
                 {% endif %}
             </div>
 
             {% if not room_locked %}
-            <form method="POST" action="{{ url_for('main.add_p2p_trade_message', trade_id=trade.id) }}" class="mt-4 space-y-3">
-                <label class="block text-sm font-bold text-white" for="message">Add to the shared record</label>
-                <textarea id="message" name="message" rows="4" required class="w-full rounded border border-gfa-grey/30 bg-black/50 p-3 text-white" placeholder="Ask a question, share a TXID, confirm payment, or record what you are waiting for."></textarea>
-                <button type="submit" class="rounded bg-gfa-blue px-4 py-2 font-bold text-white transition hover:bg-blue-600">
-                    Post Message
-                </button>
+            <form method="POST" action="{{ url_for('main.add_p2p_trade_message', trade_id=trade.id) }}" class="mt-5 space-y-3">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <label class="block text-sm font-bold text-white" for="message">Message {{ counterparty_user.username }}</label>
+                    <span class="text-xs text-gfa-grey">Never post private keys or recovery phrases</span>
+                </div>
+                <textarea id="message" name="message" rows="4" required class="w-full rounded-xl border border-gfa-grey/30 bg-black/50 p-3 text-white placeholder:text-gfa-grey/70 focus:border-gfa-light focus:outline-none focus:ring-1 focus:ring-gfa-light" placeholder="Confirm a detail, share a public TXID, or explain what you are waiting for."></textarea>
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div class="flex flex-wrap gap-2" aria-label="Message starters">
+                        <button type="button" data-message-starter="Let's confirm the exact HNS and BTC receiving addresses before sending." class="rounded-full border border-gfa-grey/20 px-3 py-1.5 text-xs text-gfa-grey hover:border-gfa-light/40 hover:text-white">Confirm addresses</button>
+                        <button type="button" data-message-starter="Here is the public transaction ID: " class="rounded-full border border-gfa-grey/20 px-3 py-1.5 text-xs text-gfa-grey hover:border-gfa-light/40 hover:text-white">Share TXID</button>
+                        <button type="button" data-message-starter="I am waiting for " class="rounded-full border border-gfa-grey/20 px-3 py-1.5 text-xs text-gfa-grey hover:border-gfa-light/40 hover:text-white">I’m waiting for…</button>
+                    </div>
+                    <button type="submit" class="shrink-0 rounded-lg bg-gfa-blue px-5 py-2.5 font-bold text-white transition hover:bg-blue-600">Post to room</button>
+                </div>
             </form>
             {% else %}
-            <p class="mt-4 rounded border border-gfa-grey/20 bg-black/30 p-3 text-sm text-gfa-grey">
-                This trade is in a final status. Download the receipt above for records.
-            </p>
+            <p class="mt-5 rounded-lg border border-gfa-grey/20 bg-black/30 p-3 text-sm text-gfa-grey">This room is closed. Its messages remain available as the trade record.</p>
             {% endif %}
         </section>
 
         <aside class="space-y-5">
-            <section class="rounded-lg border border-gfa-grey/20 bg-black/30 p-5">
-                <h2 class="text-xl font-bold text-white">Simple Checklist</h2>
-                <div class="mt-4 space-y-3 text-sm">
-                    {% for option, label in [('matched', 'Matched'), ('payment_sent', 'Payment / lock sent'), ('payment_received', 'Payment / lock confirmed'), ('released', 'Released / claimed'), ('completed', 'Completed')] %}
-                    <div class="flex items-center gap-3">
-                        <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border {{ 'border-gfa-light bg-gfa-light text-gfa-dark' if trade.milestone == option else 'border-gfa-grey/30 text-gfa-grey' }}">{{ loop.index }}</span>
-                        <span class="{{ 'font-bold text-white' if trade.milestone == option else 'text-gfa-grey' }}">{{ label }}</span>
-                    </div>
-                    {% endfor %}
-                </div>
-            </section>
-
-            <section class="rounded-lg border border-gfa-grey/20 bg-black/30 p-5">
-                <h2 class="text-xl font-bold text-white">Trade Details</h2>
-                <dl class="mt-4 space-y-2 text-sm">
-                    <div class="flex justify-between gap-3"><dt class="text-gfa-grey">Alice</dt><dd class="text-right text-white">{{ alice_user.username }}</dd></div>
-                    <div class="flex justify-between gap-3"><dt class="text-gfa-grey">Bob</dt><dd class="text-right text-white">{{ bob_user.username }}</dd></div>
-                    <div class="flex justify-between gap-3"><dt class="text-gfa-grey">Price</dt><dd class="text-right text-white">{{ '%.12f'|format(trade.offer.price_btc_per_hns) }} BTC/HNS</dd></div>
-                    <div class="flex justify-between gap-3"><dt class="text-gfa-grey">Created</dt><dd class="text-right text-white">{{ trade.created_at.strftime('%Y-%m-%d %H:%M') }}</dd></div>
-                    <div class="flex justify-between gap-3"><dt class="text-gfa-grey">Gems bond</dt><dd class="text-right text-white">{{ trade.maker_bond_amount }} / {{ trade.maker_bond_status }}</dd></div>
+            <section class="rounded-2xl border border-gfa-grey/20 bg-black/30 p-5">
+                <h2 class="text-lg font-bold text-white">Deal summary</h2>
+                <dl class="mt-4 space-y-3 text-sm">
+                    <div class="flex justify-between gap-4"><dt class="text-gfa-grey">HNS amount</dt><dd class="text-right font-bold text-white">{{ trade.offer.amount_hns }} HNS</dd></div>
+                    <div class="flex justify-between gap-4"><dt class="text-gfa-grey">BTC total</dt><dd class="break-all text-right font-mono text-white">{{ '%.12f'|format(total_btc) }}</dd></div>
+                    <div class="flex justify-between gap-4"><dt class="text-gfa-grey">Rate</dt><dd class="break-all text-right font-mono text-white">{{ '%.12f'|format(trade.offer.price_btc_per_hns) }} BTC/HNS</dd></div>
+                    <div class="flex justify-between gap-4"><dt class="text-gfa-grey">Method</dt><dd class="text-right text-white">{{ trade.offer.payment_method }}</dd></div>
+                    <div class="flex justify-between gap-4"><dt class="text-gfa-grey">Maker bond</dt><dd class="text-right text-white">{{ trade.maker_bond_amount }} Gems · {{ trade.maker_bond_status|replace('_', ' ') }}</dd></div>
                 </dl>
+                <p class="mt-4 rounded-lg border border-yellow-500/25 bg-yellow-950/20 p-3 text-xs leading-relaxed text-yellow-100">Confirm the whole-satoshi BTC total and both receiving addresses in chat. The quoted decimal is not a substitute for checking your wallet.</p>
                 {% if trade.offer.notes %}
-                <div class="mt-4 rounded border border-gfa-grey/20 bg-black/30 p-3 text-sm text-gfa-grey">
-                    <strong class="text-white">Offer notes:</strong> {{ trade.offer.notes }}
+                <div class="mt-4 border-t border-gfa-grey/10 pt-4">
+                    <p class="text-xs font-bold uppercase tracking-wider text-gfa-grey">Original offer note</p>
+                    <p class="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-white">{{ trade.offer.notes }}</p>
                 </div>
                 {% endif %}
             </section>
 
-            <section class="rounded-lg border border-gfa-grey/20 bg-black/30 p-5">
-                <h2 class="text-xl font-bold text-white">Feedback</h2>
-                {% if trade_feedback %}
-                    <div class="mt-4 space-y-3">
-                        {% for item in trade_feedback %}
-                        <div class="rounded border border-gfa-grey/20 bg-black/30 p-3 text-sm">
-                            <div class="flex items-center justify-between gap-3">
-                                <p class="font-bold text-white">{{ item.reviewer.username }}</p>
-                                <p class="font-bold text-gfa-light">{{ item.rating }}/5</p>
-                            </div>
-                            <p class="text-gfa-grey">for {{ item.reviewee.username }}</p>
-                            {% if item.comment %}
-                            <p class="mt-2 text-gfa-grey">{{ item.comment }}</p>
-                            {% endif %}
-                        </div>
-                        {% endfor %}
+            <section class="rounded-2xl border border-gfa-grey/20 bg-black/30 p-5">
+                <h2 class="text-lg font-bold text-white">Who does what</h2>
+                <div class="mt-4 space-y-3 text-sm">
+                    <div class="rounded-lg border {{ 'border-gfa-light/35 bg-gfa-light/10' if current_role == 'Alice' else 'border-gfa-grey/15 bg-black/25' }} p-3">
+                        <div class="flex items-center justify-between gap-3"><p class="font-bold text-white">{{ alice_user.username }}</p><span class="text-xs text-gfa-grey">Alice</span></div>
+                        <p class="mt-1 text-gfa-grey">HNS seller · sends HNS, receives BTC{% if current_role == 'Alice' %} · <strong class="text-gfa-light">you</strong>{% endif %}</p>
                     </div>
-                {% elif trade.status == 'completed' %}
-                    <p class="mt-3 text-sm text-gfa-grey">No feedback yet. Both parties can leave one rating for this completed trade.</p>
+                    <div class="rounded-lg border {{ 'border-gfa-light/35 bg-gfa-light/10' if current_role == 'Bob' else 'border-gfa-grey/15 bg-black/25' }} p-3">
+                        <div class="flex items-center justify-between gap-3"><p class="font-bold text-white">{{ bob_user.username }}</p><span class="text-xs text-gfa-grey">Bob</span></div>
+                        <p class="mt-1 text-gfa-grey">HNS buyer · sends BTC, receives HNS{% if current_role == 'Bob' %} · <strong class="text-gfa-light">you</strong>{% endif %}</p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="rounded-2xl border border-gfa-grey/20 bg-black/30 p-5">
+                <h2 class="text-lg font-bold text-white">Room record</h2>
+                {% if trade.latest_note %}
+                <div class="mt-3 rounded-lg border border-gfa-grey/15 bg-black/25 p-3">
+                    <p class="text-xs font-bold uppercase tracking-wider text-gfa-grey">Latest update</p>
+                    <p class="mt-1 text-sm leading-relaxed text-white">{{ trade.latest_note }}</p>
+                </div>
+                {% endif %}
+                <dl class="mt-4 space-y-4 text-sm">
+                    <div><dt class="text-gfa-grey">Alice / HNS lock TXID</dt><dd class="mt-1 break-all text-white">{{ trade.alice_lock_txid or 'Not added yet' }}</dd></div>
+                    <div><dt class="text-gfa-grey">Bob / BTC lock TXID</dt><dd class="mt-1 break-all text-white">{{ trade.bob_lock_txid or 'Not added yet' }}</dd></div>
+                    <div class="flex justify-between gap-3"><dt class="text-gfa-grey">Room created</dt><dd class="text-right text-white">{{ trade.created_at.strftime('%Y-%m-%d %H:%M') }}</dd></div>
+                </dl>
+            </section>
+        </aside>
+    </div>
+
+    {% if trade.status == 'completed' %}
+    <section id="feedback" class="rounded-2xl border border-gfa-light/40 bg-gfa-light/10 p-5 md:p-7">
+        <div class="grid gap-5 lg:grid-cols-[1fr_320px]">
+            <div>
+                <p class="text-xs font-bold uppercase tracking-wider text-gfa-light">Trade follow-up</p>
+                <h2 class="mt-1 text-2xl font-bold text-white">How was trading with {{ counterparty_user.username }}?</h2>
+                <p class="mt-2 text-gfa-grey">Your rating becomes part of their P2P reputation. Keep it factual and specific to this trade.</p>
+            </div>
+            <div class="rounded-lg border border-gfa-grey/20 bg-black/25 p-4">
+                <p class="text-sm text-gfa-grey">Current reputation</p>
+                {% if counterparty_feedback_stats.count %}
+                    <p class="mt-1 text-2xl font-bold text-white">{{ counterparty_feedback_stats.average }}/5</p>
+                    <p class="text-sm text-gfa-grey">{{ counterparty_feedback_stats.count }} {{ 'rating' if counterparty_feedback_stats.count == 1 else 'ratings' }} · {{ counterparty_feedback_stats.completed_trades }} completed trades</p>
                 {% else %}
-                    <p class="mt-3 text-sm text-gfa-grey">Feedback opens after the trade is marked complete.</p>
+                    <p class="mt-1 font-bold text-white">No ratings yet</p>
+                    <p class="text-sm text-gfa-grey">This may be their first completed trade.</p>
                 {% endif %}
-            </section>
+            </div>
+        </div>
+        <form method="POST" action="{{ url_for('main.submit_p2p_trade_feedback', trade_id=trade.id) }}" class="mt-5 grid gap-4 lg:grid-cols-[180px_1fr_auto] lg:items-end">
+            <div>
+                <label class="mb-1 block text-sm font-bold text-white" for="rating">Rating</label>
+                <select id="rating" name="rating" class="w-full rounded-lg border border-gfa-grey/30 bg-black/50 p-3 text-white" required>
+                    {% for score in [5, 4, 3, 2, 1] %}<option value="{{ score }}" {{ 'selected' if my_feedback and my_feedback.rating == score else '' }}>{{ score }} / 5</option>{% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="mb-1 block text-sm font-bold text-white" for="feedback-comment">Short note</label>
+                <input id="feedback-comment" name="comment" type="text" maxlength="1000" value="{{ my_feedback.comment if my_feedback else '' }}" class="w-full rounded-lg border border-gfa-grey/30 bg-black/50 p-3 text-white" placeholder="Communicated clearly, settled as agreed, issue resolved…">
+            </div>
+            <button type="submit" class="rounded-lg bg-gfa-light px-5 py-3 font-bold text-gfa-dark hover:bg-white">{{ 'Update feedback' if my_feedback else 'Save feedback' }}</button>
+        </form>
+    </section>
+    {% endif %}
 
-            <section class="rounded-lg border border-gfa-grey/20 bg-black/30 p-5">
-                <h2 class="text-xl font-bold text-white">TXIDs</h2>
-                <div class="mt-3 space-y-3 text-sm">
-                    <div>
-                        <p class="text-gfa-grey">Alice lock TXID</p>
-                        <p class="break-all text-white">{{ trade.alice_lock_txid or 'Not submitted yet' }}</p>
+    {% if trade_feedback %}
+    <section class="rounded-xl border border-gfa-grey/20 bg-black/25 p-5">
+        <h2 class="text-lg font-bold text-white">Feedback left in this room</h2>
+        <div class="mt-3 grid gap-3 md:grid-cols-2">
+            {% for item in trade_feedback %}
+            <article class="rounded-lg border border-gfa-grey/15 bg-black/25 p-4 text-sm">
+                <div class="flex items-center justify-between gap-3"><p class="font-bold text-white">{{ item.reviewer.username }} for {{ item.reviewee.username }}</p><p class="font-bold text-gfa-light">{{ item.rating }}/5</p></div>
+                {% if item.comment %}<p class="mt-2 text-gfa-grey">{{ item.comment }}</p>{% endif %}
+            </article>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    <section class="rounded-xl border border-gfa-grey/20 bg-black/25 p-5">
+        <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+                <h2 class="font-bold text-white">Need to correct the record or report a problem?</h2>
+                <p class="mt-1 text-sm text-gfa-grey">Manual controls are kept here so they do not compete with the normal next step.</p>
+            </div>
+            {% if trade.status not in ['completed', 'canceled', 'disputed', 'no_show'] %}
+            <form method="POST" action="{{ url_for('main.p2p_trade_action', trade_id=trade.id) }}" onsubmit="return confirmDisputeAction(this)" class="shrink-0">
+                <input type="hidden" name="action" value="mark_disputed">
+                <input type="hidden" name="note" value="">
+                <button type="submit" class="w-full rounded-lg border border-red-400/50 bg-red-950/30 px-4 py-2.5 text-sm font-bold text-red-100 hover:bg-red-900/40">Open a dispute</button>
+            </form>
+            {% endif %}
+        </div>
+
+        <details class="mt-4 border-t border-gfa-grey/10 pt-4">
+            <summary class="cursor-pointer font-bold text-gfa-grey hover:text-white">Show manual room controls</summary>
+            <div class="mt-4 grid gap-5 lg:grid-cols-2">
+                <form method="POST" action="{{ url_for('main.update_p2p_trade', trade_id=trade.id) }}" class="space-y-3 rounded-lg border border-gfa-grey/15 bg-black/25 p-4" onsubmit="return confirmTradeUpdate(this)">
+                    <h3 class="font-bold text-white">Edit room record</h3>
+                    <div class="grid gap-3 sm:grid-cols-2">
+                        <div><label class="mb-1 block text-sm text-gfa-grey">Milestone</label><select name="milestone" class="w-full rounded border border-gfa-grey/30 bg-black/50 p-2 text-white">{% for option in ['matched', 'payment_sent', 'payment_received', 'released', 'completed'] %}<option value="{{ option }}" {{ 'selected' if trade.milestone == option else '' }}>{{ option|replace('_', ' ') }}</option>{% endfor %}</select></div>
+                        <div><label class="mb-1 block text-sm text-gfa-grey">Trade status</label><select name="status" class="w-full rounded border border-gfa-grey/30 bg-black/50 p-2 text-white">{% for option in ['matched', 'completed', 'canceled', 'disputed', 'no_show'] %}<option value="{{ option }}" {{ 'selected' if trade.status == option else '' }}>{{ option|replace('_', ' ') }}</option>{% endfor %}</select></div>
                     </div>
-                    <div>
-                        <p class="text-gfa-grey">Bob lock TXID</p>
-                        <p class="break-all text-white">{{ trade.bob_lock_txid or 'Not submitted yet' }}</p>
-                    </div>
-                </div>
-            </section>
+                    <div><label class="mb-1 block text-sm text-gfa-grey">Alice / HNS TXID</label><input type="text" name="alice_lock_txid" value="{{ trade.alice_lock_txid or '' }}" class="w-full rounded border border-gfa-grey/30 bg-black/50 p-2 text-white"></div>
+                    <div><label class="mb-1 block text-sm text-gfa-grey">Bob / BTC TXID</label><input type="text" name="bob_lock_txid" value="{{ trade.bob_lock_txid or '' }}" class="w-full rounded border border-gfa-grey/30 bg-black/50 p-2 text-white"></div>
+                    <div><label class="mb-1 block text-sm text-gfa-grey">Latest room note</label><textarea name="latest_note" rows="3" class="w-full rounded border border-gfa-grey/30 bg-black/50 p-2 text-white">{{ trade.latest_note or '' }}</textarea></div>
+                    <button type="submit" class="w-full rounded bg-gfa-grey/20 py-2 font-bold text-white hover:bg-gfa-grey/30">Save manual correction</button>
+                </form>
 
-            <details class="rounded-lg border border-yellow-500/30 bg-yellow-900/20 p-5 text-yellow-100">
-                <summary class="cursor-pointer text-xl font-bold text-white">Advanced Updates</summary>
-                <div class="mt-4 space-y-4">
-                    <form method="POST" action="{{ url_for('main.update_p2p_trade', trade_id=trade.id) }}" class="space-y-3" onsubmit="return confirmTradeUpdate(this)">
-                        <div>
-                            <label class="mb-1 block text-sm text-yellow-100">Milestone</label>
-                            <select name="milestone" class="w-full rounded border border-gfa-grey/30 bg-black/50 p-2 text-white">
-                                {% for option in ['matched', 'payment_sent', 'payment_received', 'released', 'completed'] %}
-                                <option value="{{ option }}" {{ 'selected' if trade.milestone == option else '' }}>{{ option }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div>
-                            <label class="mb-1 block text-sm text-yellow-100">Trade Status</label>
-                            <select name="status" class="w-full rounded border border-gfa-grey/30 bg-black/50 p-2 text-white">
-                                {% for option in ['matched', 'completed', 'canceled', 'disputed', 'no_show'] %}
-                                <option value="{{ option }}" {{ 'selected' if trade.status == option else '' }}>{{ option }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <input type="text" name="alice_lock_txid" value="{{ trade.alice_lock_txid or '' }}" class="w-full rounded border border-gfa-grey/30 bg-black/50 p-2 text-white" placeholder="Alice lock TXID">
-                        <input type="text" name="bob_lock_txid" value="{{ trade.bob_lock_txid or '' }}" class="w-full rounded border border-gfa-grey/30 bg-black/50 p-2 text-white" placeholder="Bob lock TXID">
-                        <textarea name="latest_note" rows="3" class="w-full rounded border border-gfa-grey/30 bg-black/50 p-2 text-white" placeholder="Latest note">{{ trade.latest_note or '' }}</textarea>
-                        <button type="submit" class="w-full rounded bg-gfa-light py-2 font-bold text-gfa-dark hover:bg-white">Save Manual Update</button>
-                    </form>
-
-                    <div class="grid gap-2">
-                        {% for action, label in [('mark_payment_sent', 'Mark Payment / Lock Sent'), ('mark_payment_received', 'Mark Payment / Lock Confirmed'), ('mark_released', 'Mark Released / Claimed'), ('mark_no_show', 'Mark No-Show'), ('mark_canceled', 'Cancel Trade')] %}
-                        <form method="POST" action="{{ url_for('main.p2p_trade_action', trade_id=trade.id) }}" onsubmit="return confirmTradeAction(this)" data-confirm="Record this trade action?">
-                            <input type="hidden" name="action" value="{{ action }}">
-                            <input type="hidden" name="note" value="Updated from advanced trade controls.">
-                            <button type="submit" class="w-full rounded border border-gfa-grey/20 bg-black/30 px-3 py-2 text-sm font-bold text-gfa-grey hover:text-white">{{ label }}</button>
+                <div class="rounded-lg border border-gfa-grey/15 bg-black/25 p-4">
+                    <h3 class="font-bold text-white">Close or override the room</h3>
+                    <p class="mt-1 text-sm text-gfa-grey">These actions change the shared status immediately. Use them only when the guided flow does not fit what happened.</p>
+                    <div class="mt-4 grid gap-2">
+                        {% for action, label, prompt in [
+                            ('mark_payment_sent', 'Record first payment / lock sent', 'Has the first payment or lock actually been sent?'),
+                            ('mark_payment_received', 'Confirm first payment / lock', 'Has the first payment or lock been independently verified?'),
+                            ('mark_released', 'Record other side released', 'Has the other side actually been sent or claimed?'),
+                            ('mark_completed', 'Mark trade complete', 'Are both parties fully settled?'),
+                            ('mark_no_show', 'Close as no-show', 'Close this trade and report the counterparty as a no-show?'),
+                            ('mark_canceled', 'Cancel trade', 'Cancel this trade for both parties?')
+                        ] %}
+                        <form method="POST" action="{{ url_for('main.p2p_trade_action', trade_id=trade.id) }}" onsubmit="return confirmTradeAction(this)" data-confirm="{{ prompt }}">
+                            <input type="hidden" name="action" value="{{ action }}"><input type="hidden" name="note" value="Updated from manual room controls.">
+                            <button type="submit" class="w-full rounded border border-gfa-grey/20 bg-black/30 px-3 py-2 text-left text-sm text-gfa-grey hover:border-gfa-grey/40 hover:text-white">{{ label }}</button>
                         </form>
                         {% endfor %}
                     </div>
                 </div>
-            </details>
+            </div>
+        </details>
 
-            {% if trade.admin_review_status != 'resolved' %}
-            <section class="rounded-lg border border-yellow-500/30 bg-yellow-900/20 p-5 text-yellow-100">
-                <h2 class="text-xl font-bold text-white">Admin Review</h2>
-                <p class="mt-2"><strong>Review:</strong> {{ trade.admin_review_status }}</p>
-                <p><strong>Resolution:</strong> {{ trade.admin_resolution or 'Pending' }}</p>
-                {% if trade.admin_notes %}
-                <p class="mt-2"><strong>Admin Notes:</strong> {{ trade.admin_notes }}</p>
-                {% endif %}
-            </section>
-            {% endif %}
-        </aside>
-    </div>
+        {% if trade.admin_review_status != 'resolved' and trade.admin_review_status != 'unreviewed' %}
+        <div class="mt-5 rounded-lg border border-yellow-500/30 bg-yellow-950/20 p-4 text-sm text-yellow-100">
+            <p class="font-bold text-white">Admin review: {{ trade.admin_review_status|replace('_', ' ') }}</p>
+            <p class="mt-1">Resolution: {{ trade.admin_resolution or 'Pending' }}</p>
+            {% if trade.admin_notes %}<p class="mt-2">{{ trade.admin_notes }}</p>{% endif %}
+        </div>
+        {% endif %}
+    </section>
+
+    <section class="rounded-xl border border-red-400/20 bg-red-950/15 p-4 text-sm leading-relaxed text-red-100">
+        <strong class="text-white">Stay safe:</strong> Never share a seed phrase, private key, wallet password, or guest recovery key. Verify addresses in your own wallet. If the other party changes the agreed amount or address unexpectedly, stop and document it here.
+    </section>
 </div>
 
 <script>
     function confirmTradeAction(form) {
-        return window.confirm(form.dataset.confirm || 'Record this trade action?');
+        return window.confirm(form.dataset.confirm || 'Record this trade action for both parties?');
     }
 
     function confirmDisputeAction(form) {
-        const note = window.prompt('Briefly explain the dispute for the record:', '');
-        if (note === null) {
-            return false;
-        }
-        form.querySelector('[name="note"]').value = note.trim() || 'Opened dispute from the trade room header.';
+        const note = window.prompt('Briefly explain what happened for the shared record:', '');
+        if (note === null) return false;
+        form.querySelector('[name="note"]').value = note.trim() || 'Dispute opened from the trade room.';
         return window.confirm('Open a dispute and send this trade to review?');
     }
 
     function confirmTradeUpdate(form) {
         const milestone = form.querySelector('[name="milestone"]')?.value || 'current milestone';
         const status = form.querySelector('[name="status"]')?.value || 'current status';
-        return window.confirm(
-            `Save manual trade update?\n\nMilestone: ${milestone}\nStatus: ${status}\n\nOnly save if both sides have verified the room details.`
-        );
+        return window.confirm(`Save this manual correction for both parties?\n\nMilestone: ${milestone}\nStatus: ${status}`);
     }
+
+    document.querySelectorAll('[data-message-starter]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const message = document.getElementById('message');
+            if (!message) return;
+            message.value = button.dataset.messageStarter;
+            message.focus();
+            message.setSelectionRange(message.value.length, message.value.length);
+        });
+    });
 </script>
 {% endblock %}
