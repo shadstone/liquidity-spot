@@ -147,6 +147,16 @@ class P2POfferPermalinkTests(unittest.TestCase):
         self.assertIn('Gems are not HNS or BTC', body)
         self.assertIn('The taker never pays the maker', body)
 
+    def test_tutorial_prioritizes_the_human_p2p_flow_and_separates_atomic_swaps(self):
+        response = self.app.test_client().get('/tutorial')
+        body = response.get_data(as_text=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('This is coordination, not escrow', body)
+        self.assertIn('Human P2P does not force Alice or Bob to send first', body)
+        self.assertIn('Milestones are a shared record, not blockchain verification', body)
+        self.assertIn('Atomic swaps are a separate advanced mode', body)
+
     def test_bonded_offer_locks_maker_gems_before_going_live(self):
         maker = self.app.test_client()
         self._sign_in_gfavip_user(maker)
