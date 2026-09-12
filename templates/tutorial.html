@@ -1,170 +1,261 @@
 {% extends "base.html" %}
 
-{% block title %}Tutorial | Liquidity.spot{% endblock %}
+{% block title %}How to Trade HNS and BTC | Liquidity.spot Tutorial{% endblock %}
+
+{% block meta %}
+<meta name="description" content="Learn how to post or accept an HNS/BTC P2P offer, use the shared trade room safely, and understand Liquidity.spot roles and Gems bonds.">
+{% endblock %}
 
 {% block content %}
-<div class="max-w-4xl mx-auto bg-black/30 p-8 rounded-lg">
-    <h1 class="text-3xl font-bold mb-6 text-gfa-light">Liquidity.spot Tutorial</h1>
-
-    <div class="space-y-8 text-gfa-grey">
-        <section>
-            <h2 class="text-2xl font-bold mb-4 text-white">Meet Alice & Bob – Your Guides to Trustless HNS ↔ BTC Swaps</h2>
-            <div class="bg-black/50 p-6 rounded border border-gfa-grey/20">
-                <div class="flex flex-col md:flex-row gap-6 mb-6 items-center">
-                    <img src="{{ url_for('static', filename='img/alice-and-bob4.png') }}" alt="Alice and Bob Visual Guide" class="w-full md:w-1/3 h-auto rounded-lg shadow-lg border border-gfa-grey/20">
-                    <div class="flex-grow">
-                        <p class="mb-4">
-                            In the world of Handshake, <strong>Bob</strong> is the friendly, reliable wallet everyone knows — the one that helps you own your names and your coins without middlemen.
-                        </p>
-                        <p class="mb-4">
-                            Now imagine <strong>Alice</strong>, a domain owner who wants to trade some of her HNS for BTC privately and securely. She posts her offer on Liquidity.spot.
-                        </p>
-                    </div>
+<div class="mx-auto max-w-6xl space-y-6 pb-10">
+    <header class="overflow-hidden rounded-2xl border border-gfa-light/30 bg-black/35 shadow-2xl shadow-black/10">
+        <div class="grid gap-7 p-6 md:p-8 lg:grid-cols-[1fr_340px] lg:items-center">
+            <div>
+                <div class="inline-flex items-center rounded-full border border-gfa-light/30 bg-gfa-light/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-gfa-light">
+                    Beginner guide · Human P2P
                 </div>
-                <p class="mb-4">
-                    Along comes Bob — another Handshake user who likes her price and accepts the trade. The platform assigns roles automatically:
+                <h1 class="mt-4 text-3xl font-bold leading-tight text-white md:text-5xl">Trade HNS and BTC with a clear shared plan</h1>
+                <p class="mt-4 max-w-3xl text-base leading-relaxed text-gfa-grey md:text-lg">
+                    Liquidity.spot helps an HNS seller and an HNS buyer find each other, agree on the details, and keep one shared trade record. It does not hold, send, or automatically exchange either person’s funds.
                 </p>
-                <ul class="list-disc list-inside mb-4 ml-4 space-y-1">
-                    <li><strong>Alice (the HNS seller)</strong> locks her HNS first with a long timelock — giving Bob time to safely lock BTC.</li>
-                    <li><strong>Bob</strong> then locks BTC with a shorter timelock.</li>
-                    <li><strong>Alice</strong> claims BTC by revealing her secret → <strong>Bob</strong> sees the secret on-chain and claims his HNS.</li>
-                </ul>
-                <p>
-                    No one can cheat, no funds are ever held by the platform — just like Handshake itself: decentralized, self-sovereign, and powered by trust in math instead of trust in people.
-                </p>
-                <p class="mt-4 font-bold text-gfa-light">
-                    Welcome to Liquidity.spot — where Alice and Bob trade freely in the spirit of Handshake.
-                </p>
-            </div>
-
-            <div class="mt-6 bg-black/50 p-6 rounded border border-gfa-grey/20">
-                <h3 class="text-xl font-bold text-white mb-4">Alternative Scenario: Bob Wants to Buy HNS</h3>
-                <p class="mb-4">
-                    What if Bob initiates the trade? Let's say Bob has BTC and wants to buy HNS.
-                </p>
-                <ul class="list-disc list-inside mb-4 ml-4 space-y-1">
-                    <li>Bob creates a "Buy HNS" order on the order book.</li>
-                    <li>Alice (who has HNS) accepts Bob's order.</li>
-                    <li>Even though Bob created the order, <strong>Alice is still the HNS Seller</strong>.</li>
-                    <li>The protocol remains the same: <strong>Alice locks HNS first</strong>.</li>
-                    <li>Bob waits for Alice's lock, then locks his BTC.</li>
-                </ul>
-                <p class="text-sm text-gfa-grey italic">
-                    Key Takeaway: The person <strong>selling HNS</strong> always locks first (Alice), regardless of who posted the order.
-                </p>
-            </div>
-        </section>
-
-        <section>
-            <h2 class="text-2xl font-bold mb-4 text-white">How it Works Today</h2>
-            <p>
-                Liquidity.spot is currently evolving into a non-custodial P2P coordination platform for Handshake (HNS) and Bitcoin (BTC) trades.
-                The platform helps buyers and sellers find each other, understand their roles, and follow a shared process without taking custody of funds.
-            </p>
-            <p class="mt-2">
-                <strong>Important:</strong> We never hold your funds. You retain full custody of your coins throughout the entire process.
-            </p>
-            <p class="mt-2 text-sm text-yellow-200">
-                The trustless HTLC flow below remains available as an experimental testing feature and should not yet be treated as mainnet-ready.
-            </p>
-        </section>
-
-        <section>
-            <h2 class="text-2xl font-bold mb-4 text-white">Two Modes In The App</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div class="bg-black/50 p-4 rounded border border-gfa-grey/20">
-                    <h3 class="text-xl font-bold text-white mb-2">1. Human P2P Mode</h3>
-                    <p>
-                        This is the main product path now. Users post P2P offers, match with another user, and coordinate the trade in a shared room with milestones, TXIDs, notes, and dispute handling.
-                    </p>
-                </div>
-                <div class="bg-black/50 p-4 rounded border border-yellow-500/30">
-                    <h3 class="text-xl font-bold text-white mb-2">2. Atomic Swaps (Experimental)</h3>
-                    <p>
-                        This is the original HTLC-based flow. It is still available for testing and learning, but should be treated as experimental until safety, verification, and wallet tooling are stronger.
-                    </p>
+                <div class="mt-6 flex flex-col gap-3 sm:flex-row">
+                    <a href="{{ url_for('main.p2p') }}" class="rounded-xl bg-gfa-light px-5 py-3 text-center font-bold text-gfa-dark hover:bg-white">Open the P2P board</a>
+                    {% if session.get('user_id') %}
+                    <a href="{{ url_for('main.dashboard') }}" class="rounded-xl border border-gfa-grey/25 bg-black/25 px-5 py-3 text-center font-bold text-white hover:border-gfa-light/40">View my trades</a>
+                    {% else %}
+                    <a href="#accounts" class="rounded-xl border border-gfa-grey/25 bg-black/25 px-5 py-3 text-center font-bold text-white hover:border-gfa-light/40">Guest or GFAVIP?</a>
+                    {% endif %}
                 </div>
             </div>
-        </section>
-
-        <section>
-            <h2 class="text-2xl font-bold mb-4 text-white">Step-by-Step Guide</h2>
-            
-            <div class="space-y-4">
-                <div class="bg-black/50 p-4 rounded border border-gfa-grey/20">
-                    <h3 class="text-xl font-bold text-white mb-2">1. Start As Guest Or Connect GFAVIP</h3>
-                    <p>You can browse, post, accept, and coordinate P2P offers as a guest. GFAVIP login is optional and only needed when you choose Gems or account-linked benefits.</p>
-                </div>
-
-                <div class="bg-black/50 p-4 rounded border border-gfa-grey/20">
-                    <h3 class="text-xl font-bold text-white mb-2">2. Choose A Mode</h3>
-                    <ul class="list-disc list-inside mt-2 ml-4">
-                        <li><strong>P2P Mode:</strong> Go to the <strong>P2P</strong> page to post or accept a human-to-human offer and use the trade room.</li>
-                        <li><strong>Atomic Swaps:</strong> Go to the <strong>Atomic Swaps</strong> page to use the original HTLC testing flow.</li>
-                    </ul>
-                </div>
-
-                <div class="bg-black/50 p-4 rounded border border-yellow-500/30">
-                    <div class="inline-flex items-center gap-2 bg-yellow-500/20 text-yellow-200 text-xs font-bold px-2 py-1 rounded mb-3">
-                        Testing Only
-                    </div>
-                    <h3 class="text-xl font-bold text-white mb-2">3. Experimental Trustless Swap Process (HTLC)</h3>
-                    <p class="mb-2">Once matched, the platform automatically assigns you a role based on order sides:</p>
-                    <ul class="list-disc list-inside mb-4 ml-4">
-                        <li><strong>Alice:</strong> ALWAYS the <strong>Seller of HNS</strong> (and Buyer of BTC). She locks HNS first.</li>
-                        <li><strong>Bob:</strong> ALWAYS the <strong>Buyer of HNS</strong> (and Seller of BTC). He locks BTC second.</li>
-                    </ul>
-                    <p class="text-sm text-gfa-grey mb-4 ml-4 italic">
-                        Note: Even if you create the order ("Maker"), your role depends on <em>what</em> you are trading. If you create a "Buy HNS" order, you will be Bob.
-                    </p>
-                    
-                    <ol class="list-decimal list-inside space-y-2 ml-4">
-                        <li><strong>Initiation:</strong> The platform securely generates a random secret key and shows only its hash to both parties.</li>
-                        <li><strong>Lock HNS:</strong> Alice locks HNS in her wallet using the hash and a long timelock (48h).</li>
-                        <li><strong>Lock BTC:</strong> Bob verifies Alice's lock, then locks BTC in his wallet using the same hash and a shorter timelock (24h).</li>
-                        <li><strong>Claim BTC:</strong> Alice uses the secret key to claim the locked BTC. This reveals the secret on the blockchain.</li>
-                        <li><strong>Claim HNS:</strong> Bob sees the revealed secret and uses it to claim the locked HNS.</li>
-                    </ol>
-                </div>
+            <div class="rounded-2xl border border-yellow-500/30 bg-yellow-950/20 p-5">
+                <p class="text-xs font-bold uppercase tracking-wider text-yellow-200">Know this first</p>
+                <h2 class="mt-2 text-xl font-bold text-white">This is coordination, not escrow</h2>
+                <p class="mt-2 text-sm leading-relaxed text-yellow-100">You remain responsible for checking amounts, wallet addresses, transactions, and confirmations. Do not send anything just because an offer was accepted.</p>
             </div>
-        </section>
-
-        <section>
-            <h2 class="text-2xl font-bold mb-4 text-white">Tools You Need</h2>
-            <ul class="list-disc list-inside ml-4">
-                <li><strong>Handshake Wallet:</strong> <a href="https://bobwallet.io/" class="text-gfa-blue hover:underline" target="_blank">Bob Wallet</a> (recommended) or CLI wallet supporting HTLCs.</li>
-                <li><strong>Bitcoin Wallet:</strong> <a href="https://electrum.org/" class="text-gfa-blue hover:underline" target="_blank">Electrum</a> or Bitcoin Core (must support HTLC/scripting).</li>
-                <li><strong>GFA Gems:</strong> Optional GFAVIP account points that an offer creator locks up front as a reliability bond. <a href="{{ url_for('main.gems_guide') }}" class="text-gfa-blue hover:underline">Learn how Gems bonds work.</a></li>
-            </ul>
-        </section>
-
-        <section>
-            <h2 class="text-2xl font-bold mb-4 text-white">How to Test (Testnet)</h2>
-            <div class="space-y-4">
-                <div class="bg-black/50 p-4 rounded border border-gfa-grey/20">
-                    <h3 class="text-xl font-bold text-white mb-2">1. Get Testnet Coins</h3>
-                    <ul class="list-disc list-inside ml-4">
-                        <li><strong>BTC Testnet:</strong> Use public Bitcoin Testnet faucets.</li>
-                        <li><strong>HNS Testnet:</strong> Public faucets are limited. For reliable testing, run a local <code>hsd</code> regtest/simnet node (lightweight mode possible) or coordinate with another tester.</li>
-                    </ul>
-                </div>
-                <div class="bg-black/50 p-4 rounded border border-gfa-grey/20">
-                    <h3 class="text-xl font-bold text-white mb-2">2. Configure Wallets</h3>
-                    <ul class="list-disc list-inside ml-4">
-                        <li><strong>Bob Wallet:</strong> Settings &gt; Network &rarr; switch to Testnet/Simnet.</li>
-                        <li><strong>Electrum:</strong> Use <code>--testnet</code> flag or Testnet version.</li>
-                    </ul>
-                </div>
-                <div class="bg-black/50 p-4 rounded border border-gfa-grey/20">
-                    <h3 class="text-xl font-bold text-white mb-2">3. Perform a Swap</h3>
-                    <p>Use the Secret Hash, Timelocks, and role instructions generated by the platform to create HTLC transactions manually in your wallets.</p>
-                </div>
-            </div>
-        </section>
-        
-        <div class="mt-8 p-4 bg-yellow-900/20 border border-yellow-500/30 rounded text-sm text-yellow-100">
-            <strong>Note:</strong> Human P2P coordination is becoming the main product path. The trustless HTLC flow should be treated as testing-only for now and used only with testnet or very small experimental amounts.
         </div>
-    </div>
+    </header>
+
+    <nav class="rounded-xl border border-gfa-grey/15 bg-black/25 p-4" aria-label="Tutorial sections">
+        <p class="text-xs font-bold uppercase tracking-wider text-gfa-grey">Jump to</p>
+        <div class="mt-3 flex flex-wrap gap-2 text-sm">
+            <a href="#roles" class="rounded-full border border-gfa-grey/20 px-3 py-1.5 text-gfa-grey hover:border-gfa-light/40 hover:text-white">Your role</a>
+            <a href="#p2p-steps" class="rounded-full border border-gfa-light/30 bg-gfa-light/10 px-3 py-1.5 font-bold text-gfa-light hover:bg-gfa-light/20">P2P steps</a>
+            <a href="#safety" class="rounded-full border border-gfa-grey/20 px-3 py-1.5 text-gfa-grey hover:border-gfa-light/40 hover:text-white">Safety checklist</a>
+            <a href="#accounts" class="rounded-full border border-gfa-grey/20 px-3 py-1.5 text-gfa-grey hover:border-gfa-light/40 hover:text-white">Accounts and Gems</a>
+            <a href="#atomic" class="rounded-full border border-yellow-500/25 px-3 py-1.5 text-yellow-100 hover:bg-yellow-950/20">Experimental atomic swaps</a>
+        </div>
+    </nav>
+
+    <section id="roles" class="scroll-mt-28 rounded-2xl border border-gfa-grey/20 bg-black/30 p-6 md:p-8" aria-labelledby="roles-title">
+        <div class="grid gap-6 lg:grid-cols-[1fr_280px] lg:items-center">
+            <div>
+                <p class="text-xs font-bold uppercase tracking-wider text-gfa-light">The two sides</p>
+                <h2 id="roles-title" class="mt-1 text-2xl font-bold text-white md:text-3xl">Your asset decides your role</h2>
+                <p class="mt-3 leading-relaxed text-gfa-grey">It does not matter who posted the offer. The person selling HNS is always called Alice, and the person buying HNS is always called Bob. Every trade room also spells this out in plain language.</p>
+            </div>
+            <img src="{{ url_for('static', filename='img/alice-and-bob4.png') }}" alt="Alice and Bob, the HNS seller and buyer" class="mx-auto w-full max-w-[280px] rounded-xl border border-gfa-grey/20 shadow-lg">
+        </div>
+
+        <div class="mt-7 grid gap-4 md:grid-cols-2">
+            <article class="rounded-xl border border-gfa-light/30 bg-gfa-light/10 p-5">
+                <div class="flex items-center justify-between gap-3">
+                    <h3 class="text-xl font-bold text-white">Alice · HNS seller</h3>
+                    <span class="rounded-full bg-black/30 px-3 py-1 text-xs font-bold text-gfa-light">SENDS HNS</span>
+                </div>
+                <p class="mt-3 text-gfa-grey">Alice gives HNS and receives BTC. Alice may be either the offer creator or the person accepting it.</p>
+            </article>
+            <article class="rounded-xl border border-blue-400/30 bg-blue-950/20 p-5">
+                <div class="flex items-center justify-between gap-3">
+                    <h3 class="text-xl font-bold text-white">Bob · HNS buyer</h3>
+                    <span class="rounded-full bg-black/30 px-3 py-1 text-xs font-bold text-blue-200">SENDS BTC</span>
+                </div>
+                <p class="mt-3 text-gfa-grey">Bob gives BTC and receives HNS. “Bob” is a trade role here—it does not mean the Bob Wallet app.</p>
+            </article>
+        </div>
+    </section>
+
+    <section id="p2p-steps" class="scroll-mt-28 space-y-5" aria-labelledby="p2p-title">
+        <div class="px-1">
+            <p class="text-xs font-bold uppercase tracking-wider text-gfa-light">Main product path</p>
+            <h2 id="p2p-title" class="mt-1 text-2xl font-bold text-white md:text-3xl">A P2P trade from start to finish</h2>
+            <p class="mt-2 max-w-3xl text-gfa-grey">Follow the room in order. Its large green button changes to show the current shared next step.</p>
+        </div>
+
+        <ol class="grid gap-4 md:grid-cols-2">
+            <li class="rounded-2xl border border-gfa-grey/20 bg-black/30 p-5">
+                <div class="flex items-start gap-4">
+                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gfa-light font-bold text-gfa-dark">1</span>
+                    <div>
+                        <h3 class="text-lg font-bold text-white">Choose an offer or post your own</h3>
+                        <p class="mt-2 text-sm leading-relaxed text-gfa-grey">Browse the open P2P offers. If none fit, choose Buy HNS or Sell HNS, enter the amount and rate, and post an offer. Posting creates a public listing—it does not move funds.</p>
+                    </div>
+                </div>
+            </li>
+            <li class="rounded-2xl border border-gfa-grey/20 bg-black/30 p-5">
+                <div class="flex items-start gap-4">
+                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gfa-light font-bold text-gfa-dark">2</span>
+                    <div>
+                        <h3 class="text-lg font-bold text-white">Check the offer before accepting</h3>
+                        <p class="mt-2 text-sm leading-relaxed text-gfa-grey">Review the HNS amount, BTC/HNS rate, quoted BTC total, payment method, offer note, and any maker Gems bond. Accept only if you can take the opposite side.</p>
+                    </div>
+                </div>
+            </li>
+            <li class="rounded-2xl border border-gfa-grey/20 bg-black/30 p-5">
+                <div class="flex items-start gap-4">
+                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gfa-light font-bold text-gfa-dark">3</span>
+                    <div>
+                        <h3 class="text-lg font-bold text-white">Enter the shared trade room</h3>
+                        <p class="mt-2 text-sm leading-relaxed text-gfa-grey">Accepting matches the offer and opens one room for both parties. At the top, check your role plus exactly what you send and receive. Acceptance still does not transfer HNS or BTC.</p>
+                    </div>
+                </div>
+            </li>
+            <li class="rounded-2xl border border-gfa-light/35 bg-gfa-light/10 p-5">
+                <div class="flex items-start gap-4">
+                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white font-bold text-gfa-dark">4</span>
+                    <div>
+                        <p class="text-xs font-bold uppercase tracking-wider text-gfa-light">Most important step</p>
+                        <h3 class="mt-1 text-lg font-bold text-white">Confirm the plan before sending</h3>
+                        <p class="mt-2 text-sm leading-relaxed text-gfa-grey">Use room chat to confirm both receiving addresses, the exact whole-satoshi BTC total, who sends first, and how many confirmations you will wait for. Human P2P does not force Alice or Bob to send first—the two parties must agree.</p>
+                    </div>
+                </div>
+            </li>
+            <li class="rounded-2xl border border-gfa-grey/20 bg-black/30 p-5">
+                <div class="flex items-start gap-4">
+                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gfa-light font-bold text-gfa-dark">5</span>
+                    <div>
+                        <h3 class="text-lg font-bold text-white">Record each verified milestone</h3>
+                        <p class="mt-2 text-sm leading-relaxed text-gfa-grey">The room guides both parties through First transfer, Verify, and Other side. Add public TXIDs or confirmations to chat. Click the next-step button only after the described event really happened.</p>
+                    </div>
+                </div>
+            </li>
+            <li class="rounded-2xl border border-gfa-grey/20 bg-black/30 p-5">
+                <div class="flex items-start gap-4">
+                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gfa-light font-bold text-gfa-dark">6</span>
+                    <div>
+                        <h3 class="text-lg font-bold text-white">Verify, complete, and leave feedback</h3>
+                        <p class="mt-2 text-sm leading-relaxed text-gfa-grey">After both people independently verify that the expected HNS and BTC arrived, mark the trade complete. Then leave factual feedback and download a PDF or text receipt if you need a record.</p>
+                    </div>
+                </div>
+            </li>
+        </ol>
+    </section>
+
+    <section class="rounded-2xl border border-gfa-grey/20 bg-black/30 p-6 md:p-8" aria-labelledby="room-title">
+        <p class="text-xs font-bold uppercase tracking-wider text-gfa-light">Inside the room</p>
+        <h2 id="room-title" class="mt-1 text-2xl font-bold text-white">How to read the five milestones</h2>
+        <div class="mt-6 grid gap-3 sm:grid-cols-5">
+            {% for number, title, detail in [
+                ('1', 'Agree', 'Confirm the full plan in chat.'),
+                ('2', 'First transfer', 'One party sends as agreed.'),
+                ('3', 'Verify', 'The receiver checks it independently.'),
+                ('4', 'Other side', 'The remaining asset is sent.'),
+                ('5', 'Complete', 'Both parties verify settlement.')
+            ] %}
+            <article class="rounded-xl border border-gfa-grey/15 bg-black/25 p-4">
+                <span class="flex h-7 w-7 items-center justify-center rounded-full border border-gfa-light/40 text-xs font-bold text-gfa-light">{{ number }}</span>
+                <h3 class="mt-3 font-bold text-white">{{ title }}</h3>
+                <p class="mt-1 text-xs leading-relaxed text-gfa-grey">{{ detail }}</p>
+            </article>
+            {% endfor %}
+        </div>
+        <p class="mt-5 rounded-lg border border-blue-400/25 bg-blue-950/20 p-4 text-sm leading-relaxed text-blue-100"><strong class="text-white">Milestones are a shared record, not blockchain verification.</strong> A button records what a participant says happened. Always confirm transactions yourself in the correct wallet or block explorer.</p>
+    </section>
+
+    <section id="safety" class="scroll-mt-28 rounded-2xl border border-red-400/25 bg-red-950/15 p-6 md:p-8" aria-labelledby="safety-title">
+        <p class="text-xs font-bold uppercase tracking-wider text-red-200">Before any transfer</p>
+        <h2 id="safety-title" class="mt-1 text-2xl font-bold text-white">Safety checklist</h2>
+        <div class="mt-5 grid gap-3 md:grid-cols-2">
+            {% for item in [
+                'Verify the HNS amount, rate, and whole-satoshi BTC total.',
+                'Confirm each receiving address in the wallet that generated it.',
+                'Agree who sends first and how many confirmations are required.',
+                'Send a small test amount first when appropriate.',
+                'Check TXIDs independently; do not trust a screenshot by itself.',
+                'Stop if the amount, address, or terms change unexpectedly.',
+                'Keep important confirmations in the shared room record.',
+                'Open a dispute before taking another irreversible step if something is wrong.'
+            ] %}
+            <div class="flex gap-3 rounded-lg border border-red-300/10 bg-black/20 p-3 text-sm text-red-50">
+                <span class="font-bold text-red-200" aria-hidden="true">✓</span><p>{{ item }}</p>
+            </div>
+            {% endfor %}
+        </div>
+        <p class="mt-5 font-bold text-white">Never share a seed phrase, private key, wallet password, two-factor code, or Liquidity.spot guest recovery key.</p>
+    </section>
+
+    <section id="accounts" class="scroll-mt-28 rounded-2xl border border-gfa-grey/20 bg-black/30 p-6 md:p-8" aria-labelledby="accounts-title">
+        <p class="text-xs font-bold uppercase tracking-wider text-gfa-light">Identity and reliability</p>
+        <h2 id="accounts-title" class="mt-1 text-2xl font-bold text-white">Guest access, GFAVIP, and Gems</h2>
+        <div class="mt-5 grid gap-4 lg:grid-cols-3">
+            <article class="rounded-xl border border-gfa-grey/15 bg-black/25 p-5">
+                <h3 class="text-lg font-bold text-white">Guest</h3>
+                <p class="mt-2 text-sm leading-relaxed text-gfa-grey">Guests can browse, post, accept, and use trade rooms. Save the recovery key immediately if you want to return as the same guest from another browser.</p>
+            </article>
+            <article class="rounded-xl border border-gfa-grey/15 bg-black/25 p-5">
+                <h3 class="text-lg font-bold text-white">GFAVIP account</h3>
+                <p class="mt-2 text-sm leading-relaxed text-gfa-grey">GFAVIP login connects an account identity and account-linked features. It is optional for ordinary P2P trading.</p>
+            </article>
+            <article class="rounded-xl border border-gfa-light/25 bg-gfa-light/5 p-5">
+                <h3 class="text-lg font-bold text-white">Gems maker bond</h3>
+                <p class="mt-2 text-sm leading-relaxed text-gfa-grey">An offer creator may lock optional Gems before the offer goes live. Gems are account points—not HNS, BTC, payment, or trade escrow.</p>
+                <a href="{{ url_for('main.gems_guide') }}" class="mt-3 inline-block text-sm font-bold text-gfa-light hover:text-white">Read the Gems guide →</a>
+            </article>
+        </div>
+    </section>
+
+    <section class="rounded-2xl border border-gfa-grey/20 bg-black/30 p-6 md:p-8" aria-labelledby="help-title">
+        <p class="text-xs font-bold uppercase tracking-wider text-gfa-light">Common questions</p>
+        <h2 id="help-title" class="mt-1 text-2xl font-bold text-white">If something does not look right</h2>
+        <div class="mt-5 divide-y divide-gfa-grey/10">
+            <details class="py-4" open>
+                <summary class="cursor-pointer font-bold text-white">My offer is posted, but I do not have a trade room</summary>
+                <p class="mt-2 text-sm leading-relaxed text-gfa-grey">The offer is still waiting for another person. Open its shareable page and send the permalink to someone who can take the opposite side. A room appears only after acceptance.</p>
+            </details>
+            <details class="py-4">
+                <summary class="cursor-pointer font-bold text-white">I am not sure whether I am buying or selling</summary>
+                <p class="mt-2 text-sm leading-relaxed text-gfa-grey">Read the “Your role,” “You send,” and “You receive” cards at the top of the room. Do not proceed until those three cards match your intention.</p>
+            </details>
+            <details class="py-4">
+                <summary class="cursor-pointer font-bold text-white">The other person stopped replying or changed the deal</summary>
+                <p class="mt-2 text-sm leading-relaxed text-gfa-grey">Do not send more funds. Write the facts in room chat, then use “Open a dispute” near the bottom of the room. Manual correction and no-show controls are also kept there.</p>
+            </details>
+            <details class="py-4">
+                <summary class="cursor-pointer font-bold text-white">I lost access to my guest trades</summary>
+                <p class="mt-2 text-sm leading-relaxed text-gfa-grey">Use the Guest Recovery option on the login page with the recovery key you saved. Liquidity.spot cannot reconstruct a lost recovery key.</p>
+            </details>
+        </div>
+    </section>
+
+    <section id="atomic" class="scroll-mt-28 rounded-2xl border border-yellow-500/30 bg-yellow-950/15 p-6 md:p-8" aria-labelledby="atomic-title">
+        <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div>
+                <div class="inline-flex rounded-full border border-yellow-400/30 bg-yellow-500/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-yellow-200">Experimental · testing only</div>
+                <h2 id="atomic-title" class="mt-3 text-2xl font-bold text-white">Atomic swaps are a separate advanced mode</h2>
+                <p class="mt-2 max-w-3xl leading-relaxed text-yellow-100">The Atomic Swaps pages describe an HTLC flow with hashes, timelocks, wallet scripts, and a fixed on-chain order. This is not the normal P2P room described above.</p>
+            </div>
+            <a href="{{ url_for('main.orders') }}" class="shrink-0 rounded-lg border border-yellow-300/35 px-4 py-2.5 text-center text-sm font-bold text-yellow-100 hover:bg-yellow-950/30">View experimental mode</a>
+        </div>
+
+        <details class="mt-5 rounded-xl border border-yellow-300/15 bg-black/20 p-4">
+            <summary class="cursor-pointer font-bold text-white">Show the HTLC sequence</summary>
+            <div class="mt-4 text-sm leading-relaxed text-gfa-grey">
+                <p>Only in this experimental mode, Alice is the HNS seller who locks HNS first and Bob is the HNS buyer who locks BTC second:</p>
+                <ol class="mt-3 list-decimal space-y-2 pl-5">
+                    <li>Alice generates or receives the secret and shares its hash.</li>
+                    <li>Alice locks HNS with the longer refund window.</li>
+                    <li>Bob independently verifies that lock, then locks BTC with the shorter refund window.</li>
+                    <li>Alice claims BTC, revealing the secret on-chain.</li>
+                    <li>Bob uses that revealed secret to claim HNS.</li>
+                </ol>
+                <p class="mt-4 font-bold text-yellow-100">Use testnet, simnet, regtest, or very small experimental amounts until the wallet-assisted path has been independently proven safe.</p>
+            </div>
+        </details>
+    </section>
+
+    <section class="rounded-2xl border border-gfa-light/35 bg-gfa-light/10 p-6 text-center md:p-8">
+        <h2 class="text-2xl font-bold text-white">Ready to look at the market?</h2>
+        <p class="mx-auto mt-2 max-w-2xl text-gfa-grey">Browsing is public. You can inspect the available offers before deciding whether to participate.</p>
+        <a href="{{ url_for('main.p2p') }}" class="mt-5 inline-block rounded-xl bg-gfa-light px-6 py-3 font-bold text-gfa-dark hover:bg-white">Browse P2P offers</a>
+    </section>
 </div>
 {% endblock %}
