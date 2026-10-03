@@ -172,15 +172,18 @@ def ensure_numeric_precision():
                 ))
 
 def create_tables_tolerating_worker_race():
-    """Create tables while tolerating concurrent startup workers."""
-    try:
-        db.create_all()
-    except Exception as exc:
-        db.session.rollback()
-        message = str(exc).lower()
-        if 'already exists' not in message and 'duplicate' not in message:
-            raise
-        print(f"Table creation raced another worker; continuing: {exc}", flush=True)
+    """Serialize additive table creation before serving either startup worker.
+
+    Catching a duplicate-table error can abandon the rest of create_all midway.
+    The lock lets the second worker inspect the first worker's complete schema.
+    No existing tables, records, grants or limits are rewritten here.
+    """
+    with db.engine.begin() as connection:
+        if db.engine.dialect.name == 'postgresql':
+            connection.execute(text("SET LOCAL lock_timeout = '10s'"))
+            connection.execute(text("SET LOCAL statement_timeout = '60s'"))
+            connection.execute(text('SELECT pg_advisory_xact_lock(683937119)'))
+        db.metadata.create_all(bind=connection)
 
 # Run migrations/create tables on startup
 # This is safe to run on every deploy for simple apps

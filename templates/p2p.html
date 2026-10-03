@@ -12,7 +12,7 @@
                 </div>
                 <h1 class="text-4xl font-bold text-gfa-light">Human P2P Swaps</h1>
                 <p class="text-gfa-grey mt-2 max-w-3xl">
-                    This is a matching board, not an instant exchange. Post an offer, share its permalink, and wait for another person to take the other side. A shared trade room opens only after they accept.
+                    This is a matching board, not an instant exchange. Post an offer, copy its ready-made message for Telegram or other groups, and wait for another person to take the other side. Share the full details, not just the link. A shared trade room opens only after they accept.
                 </p>
             </div>
             <div class="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-4 text-sm text-yellow-100 md:max-w-sm">
@@ -102,7 +102,7 @@
                     <button type="button" class="text-xs bg-white/10 text-gfa-grey px-3 py-1 rounded hover:bg-white/20" onclick="clearP2PListingForm()">Clear Form</button>
                 </div>
                 <button type="submit" id="p2p-submit-offer" class="w-full bg-gfa-light text-gfa-dark font-bold py-2 rounded hover:bg-white transition">
-                    <span id="p2p-submit-offer-label">Post Offer &amp; Get Share Link</span>
+                    <span id="p2p-submit-offer-label">Post Offer &amp; Share</span>
                 </button>
             </form>
         </div>
@@ -362,7 +362,7 @@
         amountLabel.textContent = `${amount} ${amount === 1 ? 'Gem' : 'Gems'}`;
         submitLabel.textContent = amount > 0
             ? `Lock ${amount} ${amount === 1 ? 'Gem' : 'Gems'} & Post Offer`
-            : 'Post Offer & Get Share Link';
+            : 'Post Offer & Share';
     }
 
     function confirmP2PAccept(form) {

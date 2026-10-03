@@ -2,7 +2,7 @@
 
 {% block title %}Your AI trade assistant | Liquidity.spot{% endblock %}
 {% block meta %}
-<meta name="description" content="Connect your own AI assistant to follow your Liquidity.spot P2P trades and prepare private offer drafts. You approve access and keep control of every trade and payment.">
+<meta name="description" content="Choose read-only monitoring, private offer preparation or, when enabled, bounded public offer management for your Liquidity.spot agent. You approve access and keep your wallet keys.">
 {% endblock %}
 
 {% block content %}
@@ -12,7 +12,7 @@
         <div class="relative max-w-3xl">
             <p class="text-xs font-bold uppercase tracking-widest text-gfa-light">Your assistant. Your account. Your decisions.</p>
             <h1 class="mt-4 text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl">Your AI helps.<br><span class="text-gfa-light">You stay in control.</span></h1>
-            <p class="mt-5 max-w-2xl text-base leading-relaxed text-gfa-grey sm:text-lg">Let your own AI assistant follow your HNS P2P trade rooms, explain what needs attention and prepare quotes for your review. You still publish offers, accept trades, send replies and handle every payment.</p>
+            <p class="mt-5 max-w-2xl text-base leading-relaxed text-gfa-grey sm:text-lg">Let your own AI assistant follow your HNS P2P rooms or prepare private quotes. {% if config.get('AGENT_MAKER_ENABLED', false) %}You can also separately approve public offer management and replies within limits you set.{% else %}Bounded public offer management is not enabled on this site yet.{% endif %} You handle acceptance, fulfillment and every payment; your agent never holds your wallet keys.</p>
             <div class="mt-7 flex flex-col gap-3 sm:flex-row">
                 <a href="#setup" class="rounded-xl bg-gfa-light px-5 py-3 text-center font-bold text-gfa-dark transition hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">See the three setup steps ↓</a>
                 <a href="#agent-prompt" class="rounded-xl border border-gfa-grey/30 bg-black/20 px-5 py-3 text-center font-bold text-white transition hover:border-gfa-light hover:text-gfa-light focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">Get the prompt for your agent</a>
@@ -32,12 +32,12 @@
             <article class="rounded-2xl border border-gfa-light/25 bg-black/25 p-5 sm:p-6">
                 <p class="text-xs font-bold uppercase tracking-wider text-gfa-light">Prepare a quote</p>
                 <h3 class="mt-2 text-lg font-bold text-white">Review before you list</h3>
-                <p class="mt-3 text-sm leading-relaxed text-gfa-grey">With a separate Offer drafts connection, your agent can suggest buy or sell quotes within limits you provide. Drafts are private—not published offers, reserved funds or verified liquidity.</p>
+                <p class="mt-3 text-sm leading-relaxed text-gfa-grey">Choose “Prepare offer drafts (review first)” (Offer drafts) to save private quotes. You publish manually. This is different from monitoring and from public offer management. Drafts are not reserved funds or verified liquidity.</p>
             </article>
             <article class="rounded-2xl border border-yellow-500/30 bg-black/25 p-5 sm:p-6">
-                <p class="text-xs font-bold uppercase tracking-wider text-yellow-100">Keep the controls</p>
-                <h3 class="mt-2 text-lg font-bold text-white">You trade. You pay.</h3>
-                <p class="mt-3 text-sm leading-relaxed text-gfa-grey">The agent API cannot publish or accept offers, post replies, change trade status, sign transactions or move funds. A “payment sent” update is a claim, not verified payment.</p>
+                <p class="text-xs font-bold uppercase tracking-wider text-yellow-100">A separate, explicit choice</p>
+                <h3 class="mt-2 text-lg font-bold text-white">Manage offers &amp; reply</h3>
+                <p class="mt-3 text-sm leading-relaxed text-gfa-grey">{% if config.get('AGENT_MAKER_ENABLED', false) %}Approve a separate bounded-maker connection to publish real offers and optionally reply in active rooms from its offers. You choose the market, side, prices, HNS budget and activity caps first.{% else %}Not enabled yet. Monitoring and private drafts do not authorize public listings or replies.{% endif %} No profile can accept offers, change trade status, sign or move funds.</p>
             </article>
         </div>
     </section>
@@ -61,8 +61,9 @@
                 <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-gfa-light/40 bg-gfa-light/10 text-lg font-bold text-gfa-light" aria-hidden="true">2</span>
                 <div class="min-w-0 flex-1 border-b border-gfa-grey/15 pb-6">
                     <h3 class="text-lg font-bold text-white">Look up, review and approve your agent</h3>
-                    <p class="mt-2 text-sm leading-relaxed text-gfa-grey">Sign in to your intended Liquidity.spot account and open the <a href="{{ url_for('agents.workspace') }}" class="font-bold text-gfa-light underline decoration-gfa-light/40 underline-offset-4 hover:text-white">Agent workspace</a>. Choose <strong class="text-white">GFAVIP SSO</strong> and look up the exact Wallet username. Review the matched AI-agent account and cross-check its UUID before approving. The connection is bound to that permanent ID. <strong class="text-white">Trade assistant (read-only)</strong> is selected by default; private room messages need your separate permission.</p>
-                    <p class="mt-2 text-sm leading-relaxed text-gfa-grey">Lookup does not grant access. If the username is unavailable or lookup cannot be used, open the advanced UUID option and verify the agent’s <code>/me</code> result instead. Share the approved connection ID and expiry with your agent. For quote proposals, approve a separate <strong class="text-white">Offer drafts</strong> connection. Existing connections keep their current permissions.</p>
+                    <p class="mt-2 text-sm leading-relaxed text-gfa-grey">Sign in to your intended Liquidity.spot account and open the <a href="{{ url_for('agents.workspace') }}" class="font-bold text-gfa-light underline decoration-gfa-light/40 underline-offset-4 hover:text-white">Agent workspace</a>. Choose <strong class="text-white">GFAVIP SSO</strong> and look up the exact Wallet username. Review the matched AI-agent account and cross-check its UUID before approving. The connection is bound to that permanent ID. <strong class="text-white">Watch trades (read-only)</strong> is selected by default; private room messages need your separate permission.</p>
+                    <p class="mt-2 text-sm leading-relaxed text-gfa-grey">Lookup does not grant access. For monitoring or private drafts only, the advanced UUID option is available if lookup cannot be used. Share the approved connection ID and expiry with your agent. For quotes you publish yourself, choose <strong class="text-white">Prepare offer drafts (review first)</strong> (Offer drafts). Existing connections keep their current permissions; they never become makers automatically.</p>
+                    {% if config.get('AGENT_MAKER_ENABLED', false) %}<p class="mt-2 text-sm leading-relaxed text-yellow-100">Want the agent to publish? Open “Manage offers &amp; reply (within my limits)” in the workspace. Username review is required. Set every price and HNS limit yourself, then review and confirm the risk separately. Use two connections with separate budgets if you want both buy and sell offers.</p>{% endif %}
                 </div>
             </li>
             <li class="flex items-start gap-4 sm:gap-5">
@@ -80,7 +81,7 @@
         <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div class="max-w-2xl">
                 <p class="text-xs font-bold uppercase tracking-wider text-gfa-light">Start the conversation</p>
-                <h2 id="prompt-title" class="mt-2 text-2xl font-bold text-white sm:text-3xl">Give your agent this brief</h2>
+                <h2 id="prompt-title" class="mt-2 text-2xl font-bold text-white sm:text-3xl">Start with the monitor-only brief</h2>
                 <p class="mt-3 text-sm leading-relaxed text-gfa-grey">Use it with a runtime that supports the tools above. The prompt gives instructions—not access. You still approve the connection yourself.</p>
             </div>
             {% if agent_prompt %}
@@ -98,6 +99,7 @@
         </div>
         {% endif %}
         <a href="/skill_prompt.md" class="mt-3 inline-block text-sm font-bold text-gfa-light underline decoration-gfa-light/40 underline-offset-4 hover:text-white">Open the full prompt as text ↗</a>
+        <p class="mt-3 text-sm leading-relaxed text-gfa-grey">The copied brief below does not allow publishing or sending replies, even if another connection exists. For a separately approved bounded-maker routine, use the distinct brief in the full prompt document or Agent workspace. A prompt is not a permission grant.</p>
     </section>
 
     <section aria-labelledby="control-title" class="rounded-2xl border border-yellow-500/25 bg-yellow-950/15 p-5 sm:p-7">
@@ -105,7 +107,7 @@
         <div class="mt-4 grid gap-5 text-sm leading-relaxed text-gfa-grey sm:grid-cols-2">
             <div>
                 <h3 class="font-bold text-yellow-100">Your permissions have an off switch</h3>
-                <p class="mt-2">Connections expire after seven days. Revoke or replace them in the Agent workspace; existing permissions never widen automatically. Revoking stops future access, but cannot erase information already received by the agent.</p>
+                <p class="mt-2">Connections expire after seven days. Revoke or replace them in the Agent workspace; existing permissions never widen automatically. Revoking stops future access and writes, but cannot erase information already received, withdraw existing offers or resolve pending trades. Review and cancel remaining open offers separately.</p>
             </div>
             <div>
                 <h3 class="font-bold text-yellow-100">Your review is still essential</h3>

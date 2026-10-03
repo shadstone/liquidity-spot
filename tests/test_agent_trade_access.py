@@ -261,7 +261,10 @@ class AgentTradeAccessTests(unittest.TestCase):
         response = self.machine.get('/api/agent/v1/events', data='x' * 8193, headers={'Authorization': 'Bearer ' + reader})
         self.assertEqual(response.status_code, 413)
         for path in ('/events', '/trades', '/trades/1', '/trades/1/messages'):
-            self.assertEqual(self.machine.post('/api/agent/v1' + path, headers={'Authorization': 'Bearer ' + reader}).status_code, 405)
+            # Reply POST exists only for a separately approved bounded maker.
+            # A reader is denied even when the route exists.
+            expected = 403 if path.endswith('/messages') else 405
+            self.assertEqual(self.machine.post('/api/agent/v1' + path, headers={'Authorization': 'Bearer ' + reader}).status_code, expected)
         response = self.get('/api/agent/v1/events', reader)
         self.assertIn('no-store', response.headers['Cache-Control'])
         self.assertEqual(response.headers['Referrer-Policy'], 'no-referrer')

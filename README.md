@@ -184,7 +184,9 @@ username, reviews the matched AI-agent account and cross-checks its UUID before
 explicitly approving access. The server binds the grant to the permanent Wallet
 UUID. Username lookup is a human-browser feature; it accepts no agent Bearer
 authorization and does not itself create a connection or permission. The
-advanced verified-UUID path remains available when lookup cannot be used.
+advanced verified-UUID path remains available for monitoring/private drafts when
+lookup cannot be used. Bounded-maker approval requires username review, not a
+UUID or scoped-token fallback.
 `POST /agents/lookup` requires human login and CSRF protection and returns an
 HTML review. The username flow's subsequent approval at
 `POST /agents/connections` requires its signed preview proof and explicit
@@ -204,9 +206,10 @@ owner's own agent/runtime. Choose one permission profile:
 | `trade-assistant` (default for new setup) | `events:read trades:read` | Read owner-participant P2P event metadata and agreed terms. |
 | Trade assistant with separate message consent | Above plus `trade_messages:read` | Also read private messages in those rooms. |
 | `offer-drafts` | `drafts:read drafts:write` | Prepare private quote proposals; no room access. |
+| `maker-assistant`, when enabled | `events:read trades:read offers:read maker:write` | Publish/cancel this connection's eligible offers and optionally reply within immutable owner limits. No settlement. |
 
 The form field is `profile`; private text requires an explicit
-`include_messages=yes` checkbox on a new trade-assistant connection. Existing
+`include_messages=yes` checkbox on a new trade-assistant or maker-assistant connection. Existing
 credentials never widen automatically. To change permissions, revoke the old
 connection and create a new one. Every connection's actual scopes are visible.
 The username-first setup and new default leave all existing grants unchanged.
@@ -218,12 +221,70 @@ Use `Authorization: Bearer <token>` for private API requests and HTTPS for
 remote access. Revocation stops future API access, not copies of data already
 received by an agent. It does not cancel real offers or trades.
 
-Neither profile can publish or accept offers, post messages, change trade
-status, confirm payments, sign transactions or move funds through this API.
+The UI labels are **Watch trades (read-only)**, **Prepare offer drafts (review
+first)** and **Manage offers & reply (within my limits)**. The first two cannot
+publish or reply. Only the separately approved, enabled maker profile can do
+those constrained writes. No profile can accept offers, change trade status,
+confirm payments, sign transactions or move funds through this API.
 Wallet keys stay with the human owner. This is a credential permission
 boundary, not global bot blocking: existing public/guest routes are still
 available to clients that omit the agent credential. Do not give an agent
 browser-session cookies or guest recovery credentials to bypass the boundary.
+
+### Bounded-maker mode: explicit owner limits
+
+`AGENT_MAKER_ENABLED` is off by default. A release containing the code is not
+proof that this mode is enabled; check live `/api/agent/v1/capabilities`. Enabling
+the flag never upgrades existing grants. Disabling it prevents future maker
+API writes, but does not cancel existing public offers or resolve trades.
+
+The owner uses the separate username-lookup maker form, supplies every financial
+limit without prefilled values, then reviews the matched AI identity, complete
+policy and a separate required risk confirmation. Limits are immutable per
+connection: one exact asset/network, one HNS buy/sell side, inclusive price
+bounds, maximum HNS per offer, lifetime published HNS budget, maximum open offers
+(1–10), new offers per hour (1–20), optional reply permission and reply caps
+(1–20/hour, 1–200 lifetime). Reply caps are zero when disabled. Private-chat
+reading is separately consented and is not implied by reply permission.
+
+The lifetime budget is HNS published—even for buy offers—not USDT spend or a
+verified balance. Cancellation/completion does not restore it. Both sides need
+two separately reviewed connections and independent budgets. Every public
+listing remains the owner's fulfillment responsibility; there is no custody,
+reserved liquidity, Gem bond, payment verification or automatic settlement.
+
+Maker API endpoints (GFAVIP SSO + explicit connection selection only):
+
+- `GET /api/agent/v1/maker-policy`: immutable policy plus current usage.
+- `GET /api/agent/v1/offers?scope=book|mine`: open book or owner's offers.
+- `POST /api/agent/v1/offers`: real public offer using decimal-string terms.
+- `POST /api/agent/v1/offers/<id>/cancel` with `{}`: only this connection's open,
+  unbonded offers, never accepted trades or another connection's listings.
+- `POST /api/agent/v1/trades/<id>/messages` with `{"message":"<plain text>"}`:
+  only if replies are enabled, within quotas and in eligible active rooms formed
+  from this connection's offers. At most 1,000 characters; server adds AI
+  attribution. Free-form messages may be wrong and never prove payment.
+
+Every write requires `Idempotency-Key`; retain the same key and payload after
+uncertain outcomes. Read the public API reference for pagination, exact schemas
+and errors. The monitor prompt remains monitor-only; the full prompt document
+and workspace provide a distinct bounded-maker brief. Neither brief grants
+access or starts a schedule.
+
+Revocation/expiry stops future access and writes, but leaves listings and pending
+trades intact. Owners must review and separately cancel remaining open offers
+through the human P2P interface. Seven-day renewal requires another approval.
+
+Release verification: this change adds `agent_maker_policies` and
+`agent_maker_actions` without replacing existing tables. Startup runs additive
+`create_all` under a PostgreSQL advisory lock. Run
+`python scripts/check_agent_maker_postgres.py --pg-bin /path/to/local/postgresql/bin`
+for the isolated synthetic PostgreSQL migration, race and rollback checks.
+These tests are not a production backup or restore rehearsal. Before deployment,
+take and verify a production backup and rehearse recovery. Deploy with the maker
+flag off first, verify schema and all workers, then explicitly enable it.
+Rollback by disabling maker access stops future writes; it does not cancel
+existing offers or resolve pending trades.
 
 ### Trade assistant: bootstrap and poll
 

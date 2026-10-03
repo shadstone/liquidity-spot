@@ -36,7 +36,8 @@ def canonical_wallet_id(value):
 
 
 def create_sso_grant(owner_id, label, agent_gfavip_user_id,
-                     profile='offer-drafts', include_messages=False):
+                     profile='offer-drafts', include_messages=False,
+                     maker_policy=None, reviewed_username=False):
     """Create, but do not commit, an explicit human-authorized connection.
 
     The supplied ID is a binding chosen by the owner, not proof of identity.
@@ -48,7 +49,11 @@ def create_sso_grant(owner_id, label, agent_gfavip_user_id,
     agent_id = canonical_wallet_id(agent_gfavip_user_id)
     if agent_id is None:
         raise WorkspaceError('Enter the agent’s permanent GFAVIP Wallet UUID, not a token, email, or handle.')
-    connection, unused_token = issue_connection(owner_id, label, profile, include_messages)
+    if profile == 'maker-assistant' and reviewed_username is not True:
+        raise WorkspaceError('Maker access requires reviewing the matched GFAVIP username.', 403)
+    connection, unused_token = issue_connection(owner_id, label, profile, include_messages,
+                                                maker_policy=maker_policy,
+                                                _reviewed_sso=reviewed_username is True)
     del unused_token
     db.session.add(AgentSSOGrant(connection=connection, agent_gfavip_user_id=agent_id))
     db.session.flush()

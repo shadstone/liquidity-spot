@@ -1,4 +1,4 @@
-"""Owner-scoped draft preparation and opt-in read access. No trading permissions."""
+"""Owner-scoped permissions; maker writes require a separate reviewed SSO grant."""
 from datetime import datetime, timedelta
 import hashlib
 import json
@@ -14,12 +14,17 @@ from services.agent_sso import AgentSSOGrant, authenticate_sso_connection
 SCOPE = 'drafts:read drafts:write'
 PROFILES = {
     'offer-drafts': {
-        'label': 'Offer drafts',
+        'label': 'Prepare offer drafts (review first)',
         'scopes': ['drafts:read', 'drafts:write'],
     },
     'trade-assistant': {
-        'label': 'Trade assistant (read-only)',
+        'label': 'Watch trades (read-only)',
         'scopes': ['events:read', 'trades:read'],
+        'optional_scope': 'trade_messages:read',
+    },
+    'maker-assistant': {
+        'label': 'Manage offers & reply (within my limits)',
+        'scopes': ['events:read', 'trades:read', 'offers:read', 'maker:write'],
         'optional_scope': 'trade_messages:read',
     },
 }
@@ -27,6 +32,8 @@ VALID_SCOPE_SETS = (
     frozenset(PROFILES['offer-drafts']['scopes']),
     frozenset(PROFILES['trade-assistant']['scopes']),
     frozenset([*PROFILES['trade-assistant']['scopes'], 'trade_messages:read']),
+    frozenset(PROFILES['maker-assistant']['scopes']),
+    frozenset([*PROFILES['maker-assistant']['scopes'], 'trade_messages:read']),
 )
 LIMITS = {'pending': 50, 'hourly': 100, 'body_bytes': 8192,
           'connections': 5, 'token_days': 7, 'connections_hourly': 20}
@@ -57,7 +64,8 @@ class AgentConnection(db.Model):
 
     @property
     def profile_id(self):
-        return 'offer-drafts' if set(self.scope_list) == set(PROFILES['offer-drafts']['scopes']) else 'trade-assistant'
+        scopes = set(self.scope_list) - {'trade_messages:read'}
+        return next((key for key, profile in PROFILES.items() if scopes == set(profile['scopes'])), None)
 
     @property
     def authentication_method(self):
@@ -103,16 +111,29 @@ def lock_owner(owner_id):
         # retaining the user's values; it is never a wallet/balance mutation.
         db.session.execute(update(User).where(User.id == owner_id).values(last_sync=User.last_sync)
                            .execution_options(synchronize_session=False))
-    return User.query.filter_by(id=owner_id).with_for_update().first()
+    # PostgreSQL NO KEY UPDATE still serializes owner operations without
+    # deadlocking against KEY SHARE checks when room events reference users.
+    return User.query.filter_by(id=owner_id).with_for_update(key_share=True).first()
 
 
-def issue_connection(owner_id, label, profile='offer-drafts', include_messages=False):
+def issue_connection(owner_id, label, profile='offer-drafts', include_messages=False,
+                     maker_policy=None, *, _reviewed_sso=False):
     if profile not in PROFILES:
         raise WorkspaceError('Choose an available agent permission profile.')
     if type(include_messages) is not bool:
         raise WorkspaceError('Message access requires an explicit yes/no choice.')
-    if include_messages and profile != 'trade-assistant':
-        raise WorkspaceError('Message access is only available for the trade-assistant profile.')
+    if include_messages and profile not in ('trade-assistant', 'maker-assistant'):
+        raise WorkspaceError('Message access is only available for trade watching or maker assistance.')
+    canonical_policy = None
+    if profile == 'maker-assistant':
+        from services.agent_maker import maker_enabled, validate_maker_policy
+        if not _reviewed_sso:
+            raise WorkspaceError('Maker access requires a reviewed GFAVIP username connection.', 403)
+        if not maker_enabled():
+            raise WorkspaceError('Agent offer management is not enabled.', 503)
+        canonical_policy = validate_maker_policy(maker_policy)
+    elif maker_policy is not None:
+        raise WorkspaceError('Maker limits are only available for the maker-assistant profile.')
     scopes = list(PROFILES[profile]['scopes'])
     if include_messages:
         scopes.append('trade_messages:read')
@@ -139,6 +160,11 @@ def issue_connection(owner_id, label, profile='offer-drafts', include_messages=F
                                  scope=' '.join(scopes), created_at=now, expires_at=now + timedelta(days=LIMITS['token_days']))
     db.session.add(connection)
     db.session.flush()
+    if canonical_policy is not None:
+        from services.agent_maker import AgentMakerPolicy, policy_digest
+        db.session.add(AgentMakerPolicy(connection_id=connection.id, policy=canonical_policy,
+                                       policy_hash=policy_digest(canonical_policy)))
+        db.session.flush()
     return connection, raw_token
 
 
@@ -163,7 +189,7 @@ def authenticate_bearer(header, required_scopes=None, connection_id=None):
         connection = AgentConnection.query.filter_by(token_hash=digest_token(parts[1])).first()
         # SSO grants deliberately discard the generated legacy secret. Even if
         # it were accidentally retained, it must not bypass Wallet verification.
-        if connection and connection.sso_grant is not None:
+        if connection and (connection.sso_grant is not None or 'maker:write' in connection.scope_list):
             raise WorkspaceError('A valid scoped agent Bearer credential is required.', 401)
     if not connection or not connection.is_active or frozenset(connection.scope_list) not in VALID_SCOPE_SETS:
         raise WorkspaceError('A valid scoped agent Bearer credential is required.', 401)

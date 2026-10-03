@@ -63,6 +63,25 @@
         </dl>
         {% if profile == 'trade-assistant' %}
         <p class="warning"><strong>Read-only trade assistance.</strong> This grants access to your P2P event metadata and agreed trade terms{% if include_messages %}, plus the private messages you selected{% endif %}. It does not allow quote drafting, posting replies, publishing or accepting offers, changing trade status, confirming payments, moving funds or accessing wallet keys.</p>
+        {% elif profile == 'maker-assistant' %}
+        {% set asset = payment_assets[maker_policy.payment_asset] %}
+        <div class="account" data-maker-review-policy>
+            <h2>Your fixed publishing limits</h2>
+            <dl>
+                <dt>HNS side</dt><dd>{{ 'Buy HNS' if maker_policy.side == 'buy' else 'Sell HNS' }} only · Handshake mainnet</dd>
+                <dt>Payment asset and network</dt><dd>{{ asset.label }}{% if asset.chain_id %} · Chain {{ asset.chain_id }}{% endif %}</dd>
+                {% if asset.contract %}<dt>Token contract — not a receiving address</dt><dd><code>{{ asset.contract }}</code></dd>{% endif %}
+                <dt>Allowed price per HNS</dt><dd>{{ maker_policy.min_price }}–{{ maker_policy.max_price }} {{ asset.symbol }}</dd>
+                <dt>Maximum HNS per offer</dt><dd>{{ maker_policy.max_offer_hns }} HNS</dd>
+                <dt>Lifetime published HNS budget</dt><dd>{{ maker_policy.total_hns_budget }} HNS</dd>
+                <dt>Maximum open offers</dt><dd>{{ maker_policy.max_open_offers }}</dd>
+                <dt>Maximum new offers per hour</dt><dd>{{ maker_policy.max_offers_per_hour }}</dd>
+                <dt>Send AI-labeled replies</dt><dd>{% if maker_policy.allow_replies %}Allowed, only in active rooms from this connection’s offers. Up to {{ maker_policy.max_replies_per_hour }} replies/hour and {{ maker_policy.max_replies_total }} over this connection’s lifetime. Maximum 1,000 plain-text characters per reply.{% else %}Not allowed. Reply limits: zero.{% endif %}</dd>
+            </dl>
+            <p class="small">Limits cannot be edited after approval. Every published offer consumes the lifetime HNS budget; cancellation or completion does not restore it. To buy and sell, use separate connections with separate budgets. No funds are reserved or verified.</p>
+        </div>
+        <p class="warning"><strong>This permits real public listings, not private drafts.</strong> Your agent may publish without asking about each offer and cancel only this connection’s open, unbonded offers. No GFA Gem bonds. It may send replies only if allowed above; private message reading is the separate consent shown above. It cannot accept offers, change or resolve trades, confirm payment, sign or move funds. AI replies can be mistaken and are not payment proof.</p>
+        <p class="warning"><strong>Revocation does not withdraw existing offers.</strong> Revocation or expiry stops future API access and writes. You must separately cancel any remaining open offers on the P2P board and handle pending trades yourself.</p>
         {% else %}
         <p class="warning"><strong>Private offer drafts only.</strong> This grants permission to prepare and read proposed quotes for your review. It does not grant access to trade rooms or messages, publish or accept offers, confirm payments, move funds or access wallet keys.</p>
         {% endif %}
@@ -74,6 +93,7 @@
             <input type="hidden" name="identity_mode" value="username">
             <input type="hidden" name="lookup_proof" value="{{ lookup_proof }}">
             <label for="confirm-agent" class="consent"><input id="confirm-agent" name="confirm_agent" type="checkbox" value="yes" required><span>I recognize <strong>{{ matched_account.username }}</strong> and approve exactly the access shown above for my signed-in account.</span></label>
+            {% if profile == 'maker-assistant' %}<label for="confirm-maker-risk" class="consent"><input id="confirm-maker-risk" name="confirm_maker_risk" type="checkbox" value="yes" required><span>I approve these exact limits for real public offers{% if maker_policy.allow_replies %} and AI-labeled replies{% endif %}. I remain responsible for fulfillment and payment, and understand that revoking access will not cancel existing offers or resolve trades.</span></label>{% endif %}
             <div class="actions">
                 <button type="submit">Approve agent access</button>
                 <a href="{{ url_for('agents.workspace') }}">Back — change or cancel</a>
