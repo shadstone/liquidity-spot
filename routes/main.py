@@ -1241,10 +1241,11 @@ def p2p():
 
 @main_bp.route('/p2p/offers/<int:offer_id>')
 def p2p_offer_details(offer_id):
+    from services.listing_inquiries import listing_inquiry_context
     offer = P2POffer.query.get_or_404(offer_id)
     trade = offer.trade[0] if offer.trade else None
     share_url = _external_url_for('main.p2p_offer_details', offer_id=offer.id)
-    return render_template(
+    response = current_app.make_response(render_template(
         'p2p_offer.html',
         offer=offer,
         offer_context=_p2p_offer_context(offer),
@@ -1255,7 +1256,12 @@ def p2p_offer_details(offer_id):
         ),
         share_url=share_url,
         share_text=build_offer_share_text(offer, share_url),
-    )
+        inquiry_listing=listing_inquiry_context('p2p', offer, session.get('user_id')),
+    ))
+    if session.get('user_id'):
+        response.headers['Cache-Control'] = 'no-store, private'
+        response.headers['Pragma'] = 'no-cache'
+    return response
 
 
 @main_bp.route('/maker-mode')
@@ -1277,6 +1283,12 @@ def maker_mode():
 
 @main_bp.route('/p2p/offers', methods=['POST'])
 def create_p2p_offer():
+    from services.listing_inquiries import new_listing_chat_choice
+    try:
+        allow_pretrade_chat = new_listing_chat_choice(request.form)
+    except ValueError as exc:
+        flash(str(exc), 'error')
+        return redirect(url_for('main.p2p'))
     try:
         user = _ensure_session_user()
     except RuntimeError:
@@ -1328,6 +1340,7 @@ def create_p2p_offer():
             notes=notes,
             status='funding' if gems_stake and gems_stake > 0 else 'open',
             maker_bond_status='pending' if gems_stake and gems_stake > 0 else 'none',
+            allow_pretrade_chat=allow_pretrade_chat,
         )
         db.session.add(offer)
         db.session.commit()
@@ -2013,6 +2026,12 @@ def activity():
 @main_bp.route('/orders', methods=['GET', 'POST'])
 def orders():
     if request.method == 'POST':
+        from services.listing_inquiries import new_listing_chat_choice
+        try:
+            allow_pretrade_chat = new_listing_chat_choice(request.form)
+        except ValueError as exc:
+            flash(str(exc), 'error')
+            return redirect(url_for('main.orders'))
         try:
             user = _ensure_session_user()
         except RuntimeError:
@@ -2041,7 +2060,8 @@ def orders():
                 side=side,
                 amount_hns=Decimal(amount_hns),
                 price_btc_per_hns=Decimal(price),
-                gems_stake=gems_stake
+                gems_stake=gems_stake,
+                allow_pretrade_chat=allow_pretrade_chat,
             )
             db.session.add(order)
             db.session.commit()
@@ -2066,16 +2086,22 @@ def orders():
 
 @main_bp.route('/orders/<int:order_id>', methods=['GET'])
 def order_details(order_id):
+    from services.listing_inquiries import listing_inquiry_context
     order = Order.query.get_or_404(order_id)
     existing_swap = order.swap[0] if order.swap else None
     total_btc = Decimal(order.amount_hns) * Decimal(order.price_btc_per_hns)
 
-    return render_template(
+    response = current_app.make_response(render_template(
         'order_details.html',
         order=order,
         existing_swap=existing_swap,
         total_btc=total_btc,
-    )
+        inquiry_listing=listing_inquiry_context('atomic', order, session.get('user_id')),
+    ))
+    if session.get('user_id'):
+        response.headers['Cache-Control'] = 'no-store, private'
+        response.headers['Pragma'] = 'no-cache'
+    return response
 
 
 @main_bp.route('/orders/<int:order_id>/accept', methods=['POST'])

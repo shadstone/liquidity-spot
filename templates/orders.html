@@ -64,6 +64,8 @@
                 <input type="number" name="gems_stake" class="w-full bg-black/50 border border-gfa-grey/30 rounded p-2 text-white" placeholder="50">
                 <p class="text-xs text-gfa-grey mt-1">Optional. GFAVIP login is required only when using Gems.</p>
             </div>
+            <input type="hidden" name="inquiry_setting_present" value="yes">
+            <label for="atomic-allow-pretrade-chat" class="flex items-start gap-3 rounded-lg border border-gfa-light/30 bg-black/20 p-3 text-sm text-gfa-grey"><input id="atomic-allow-pretrade-chat" type="checkbox" name="allow_pretrade_chat" value="yes" checked class="mt-1 h-4 w-4 shrink-0"><span><strong class="text-white">Allow private questions before accepting.</strong> People can ask or negotiate in your inquiry inbox without accepting a swap, reserving the order or locking funds. Change this on the order page at any time.</span></label>
             <button type="submit" class="w-full bg-gfa-light text-gfa-dark font-bold py-2 rounded hover:bg-white transition">Post Order</button>
         </form>
     </div>
@@ -108,6 +110,7 @@
                                             {% endif %}
                                         </div>
                                     {% else %}
+                                        {% if order.allow_pretrade_chat %}<a href="{{ url_for('inquiries.start', kind='atomic', listing_id=order.id) }}" class="mb-2 block text-xs font-bold text-gfa-light hover:text-white">Ask / negotiate first</a>{% endif %}
                                         <form method="POST" action="{{ url_for('main.accept_order', order_id=order.id) }}" onsubmit="return confirmAtomicAccept(this)">
                                             <input type="hidden" name="order_side" value="{{ order.side }}">
                                             <input type="hidden" name="order_amount" value="{{ order.amount_hns }}">

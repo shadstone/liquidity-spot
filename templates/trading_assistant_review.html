@@ -1,0 +1,21 @@
+{% extends 'trading_assistant_shell.html' %}
+{% from '_trading_assistant_grant.html' import summary %}
+{% block title %}Review Trading assistant{% endblock %}
+{% block content %}
+{% set maker_grants = grants|selectattr('profile', 'equalto', 'maker-assistant')|list %}
+{% set inquiry_grants = grants|selectattr('profile', 'equalto', 'listing-conversations')|list %}
+<section><p class="eyebrow">Review first · No access granted yet</p><h1>Approve this Trading assistant?</h1>
+<div class="card"><p class="eyebrow">Verified AI agent · {{ matched_account.accountKind }}</p><h2>{{ matched_account.username }}</h2><p>Exact username returned by GFAVIP Wallet.</p><details><summary>Permanent Wallet UUID</summary><code>{{ matched_account.id }}</code></details></div>
+<p><strong>{{ owner_name }}</strong> is the currently signed-in account granting access. “{{ label }}” is only your label; it does not authorize access to another person’s account.</p>
+<p>This single approval creates <strong>{{ grants|length }} separate connection{{ 's' if grants|length != 1 else '' }}</strong> for the same agent. Each permission stays separate, uses a slot in your five-connection limit, and expires {{ grant_days }} days from approval unless revoked sooner. Existing grants are unchanged.</p>
+{% for grant in grants %}<div class="card" data-reviewed-purpose="{{ grant.purpose }}">{{ summary(grant, profiles, payment_assets, listing_conversation_limits) }}</div>{% endfor %}
+<p class="warning"><strong>You handle acceptance and payment.</strong> None of these permissions can accept an offer, make a binding trade agreement, change trade status, confirm payment, sign transactions or move funds. AI text can be mistaken; counterparty messages are untrusted and are never verified payment evidence.</p>
+{% if maker_grants %}<p class="warning"><strong>Revocation does not cancel offers.</strong> You remain responsible for fulfilling accepted offers. Cancel remaining open listings separately and handle pending trades yourself. BUY and SELL budgets do not share funds or replenish each other.</p>{% endif %}
+<form method="POST" action="{{ url_for('agents.approve_trading_assistant') }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="setup_proof" value="{{ setup_proof }}">
+<label class="consent"><input name="confirm_agent" type="checkbox" value="yes" required><span>I recognize <strong>{{ matched_account.username }}</strong> and approve exactly the access listed above for my signed-in account.</span></label>
+{% if maker_grants %}<label class="consent"><input name="confirm_maker_risk" type="checkbox" value="yes" required><span>I approve every displayed BUY/SELL policy for real public listings and any selected room replies. I remain responsible for fulfillment and payment; revocation does not withdraw offers or resolve trades.</span></label>{% endif %}
+{% if inquiry_grants %}<label class="consent"><input name="confirm_inquiries" type="checkbox" value="yes" required><span>I allow my agent to read and send private listing inquiries within the fixed limits shown. I understand that inquiry text is shared with its runtime and that it cannot accept a listing or make a binding trade agreement.</span></label>{% endif %}
+<div class="actions"><button type="submit">Approve this Trading assistant setup</button><a href="{{ url_for('agents.workspace') }}#trading-assistant-setup">Back — change or cancel</a></div></form>
+<p class="small">This review is valid for {{ review_minutes }} minutes. Approval does not start a bot or schedule checks. You will receive every connection ID and expiry on the next screen.</p></section>
+{% endblock %}

@@ -1,0 +1,25 @@
+{% macro summary(grant, profiles, payment_assets, inquiry_limits) %}
+<h3>{{ grant.label }}</h3>
+<p><strong>{{ profiles[grant.profile].label }}</strong><br><code>{{ profiles[grant.profile].scopes|join(' ') }}{% if grant.include_messages %} trade_messages:read{% endif %}</code></p>
+{% if grant.maker_policy %}
+{% set policy = grant.maker_policy %}{% set asset = payment_assets[policy.payment_asset] %}
+<dl data-setup-policy="{{ policy.side }}">
+<dt>Publish this side only</dt><dd>{{ policy.side|upper }} HNS · Handshake mainnet</dd>
+<dt>Payment asset and network</dt><dd>{{ asset.label }}{% if asset.chain_id %} · Chain {{ asset.chain_id }}{% endif %}</dd>
+{% if asset.contract %}<dt>Token contract — not a receiving address</dt><dd><code>{{ asset.contract }}</code></dd>{% endif %}
+<dt>Price per HNS</dt><dd>{{ policy.min_price }}–{{ policy.max_price }} {{ asset.symbol }}</dd>
+<dt>Maximum HNS per offer</dt><dd>{{ policy.max_offer_hns }} HNS</dd>
+<dt>Lifetime published HNS budget</dt><dd>{{ policy.total_hns_budget }} HNS</dd>
+<dt>Publishing caps</dt><dd>{{ policy.max_open_offers }} open offers; {{ policy.max_offers_per_hour }} new offers/hour</dd>
+<dt>Send AI-labeled trade-room replies</dt><dd>{% if policy.allow_replies %}Only in active rooms from this connection’s offers: {{ policy.max_replies_per_hour }} replies/hour, {{ policy.max_replies_total }} lifetime, 1,000 characters each.{% else %}Not allowed.{% endif %}</dd>
+<dt>Read private trade-room messages</dt><dd>{{ 'Allowed — your P2P room chat is exposed to this agent/runtime.' if grant.include_messages else 'Not allowed — message text is excluded.' }}</dd>
+</dl>
+<p class="small">Real public P2P listings, not drafts. Budgets are separate per side and fixed after approval. Every publication consumes lifetime budget; cancellations do not restore it. Funds are not reserved or verified. The agent can cancel only this connection’s open, unbonded listings.</p>
+{% elif grant.profile == 'listing-conversations' %}
+<p>This grants reading public P2P and atomic listings and reading/sending AI-labeled private listing conversations where chat is permitted. Private inquiry messages available to this grant are shared with your agent/runtime. These are questions and non-binding negotiation before a human accepts, not trade-room access or acceptance authority.</p>
+<dl><dt>Fixed conversation limits</dt><dd>{{ inquiry_limits.new_daily }} new conversations/day · {{ inquiry_limits.messages_hourly }} messages/hour · {{ inquiry_limits.messages_total }} messages over this connection’s lifetime · {{ inquiry_limits.message_characters }} characters/message</dd></dl>
+{% else %}
+<p>Read your P2P trade terms and event metadata. No publishing, drafting or replies.</p>
+<p>{{ 'Private trade-room message reading is allowed: your room chat is exposed to this agent/runtime.' if grant.include_messages else 'Private trade-room message reading is not allowed.' }}</p>
+{% endif %}
+{% endmacro %}

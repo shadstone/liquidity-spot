@@ -33,6 +33,7 @@ class Order(db.Model):
     price_btc_per_hns = db.Column(db.Numeric(precision=24, scale=12))
     gems_stake = db.Column(db.Integer, nullable=True)        # optional skin-in-game stake
     status = db.Column(db.String(20), default='open')        # open / matched / canceled
+    allow_pretrade_chat = db.Column(db.Boolean, nullable=False, default=True, server_default=db.true())
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     user = db.relationship('User', backref='orders')
 
@@ -103,6 +104,7 @@ class P2POffer(db.Model):
     payment_method = db.Column(db.String(50), default='Manual Wallet Transfer')
     notes = db.Column(db.Text)
     status = db.Column(db.String(20), default='open')          # funding / open / matched / canceled / bond_required / bond_failed
+    allow_pretrade_chat = db.Column(db.Boolean, nullable=False, default=True, server_default=db.true())
     maker_bond_status = db.Column(db.String(20), default='none')  # none / pending / locked / refunded / slashed / failed / not_locked
     maker_bond_locked_at = db.Column(db.DateTime)
     maker_bond_released_at = db.Column(db.DateTime)

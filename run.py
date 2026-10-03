@@ -191,6 +191,8 @@ try:
     with app.app_context():
         print("Creating/Verifying database tables...", flush=True)
         create_tables_tolerating_worker_race()
+        from services.inquiry_schema import ensure_inquiry_schema
+        ensure_inquiry_schema(db.engine)
         ensure_user_schema()
         ensure_p2p_offer_bond_schema()
         ensure_p2p_schema()

@@ -167,10 +167,11 @@ class AgentMakerUITests(unittest.TestCase):
         self.app.config['AGENT_MAKER_ENABLED'] = False
         document = self.client.get('/ai-assistant').get_data(as_text=True)
         self.assertIn('not enabled on this site yet', document)
-        self.assertIn('monitor-only brief', document)
+        self.assertIn('Trading assistant brief', document)
+        self.assertIn('No connection means no private access', document)
         self.app.config['AGENT_MAKER_ENABLED'] = True
         document = self.client.get('/ai-assistant').get_data(as_text=True)
-        self.assertIn('You can also separately approve public offer management', document)
+        self.assertIn('Approve buying, selling, or both within limits you set', document)
         self.assertNotIn('The agent API cannot publish', document)
 
     @unittest.skipUnless(shutil.which('node'), 'Node is required for optional enhancement behavior test')

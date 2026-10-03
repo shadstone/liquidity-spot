@@ -1,0 +1,10 @@
+{% extends 'trading_assistant_shell.html' %}
+{% from '_trading_assistant_grant.html' import summary %}
+{% block title %}Trading assistant approved{% endblock %}
+{% block content %}
+<section><p class="eyebrow">Owner-approved access</p><h1>Your Trading assistant is connected</h1><h2>{{ matched_account.username }}</h2><p>Approved Wallet UUID: <code>{{ matched_account.id }}</code></p><p>Give your agent the connection IDs below and their purposes. IDs are not login credentials; it must still use its own GFAVIP SSO identity. No API key or token was created or shown here.</p>
+{% for item in issued %}<div class="card" data-issued-purpose="{{ item.grant.purpose }}"><h2>Connection #{{ item.connection.id }}</h2><p><code>X-Liquidity-Connection: {{ item.connection.id }}</code><br>Expires {{ item.connection.expires_at.strftime('%Y-%m-%d %H:%M:%S') }} UTC</p>{{ summary(item.grant, profiles, payment_assets, listing_conversation_limits) }}<p class="small">Actual granted scopes: <code>{{ item.connection.scope }}</code></p></div>{% endfor %}
+<p class="warning">No offers were published and no messages were sent by this setup. It has not scheduled your bot. Existing connections are unchanged. Acceptance, payment and fulfillment remain your responsibility.</p>
+<h2>Give this matching brief to your agent</h2><label for="trading-assistant-brief" class="small">Copy the brief and connection IDs. Configure credentials privately in the runtime, not in the prompt.</label><textarea id="trading-assistant-brief" readonly spellcheck="false">{{ routine_brief }}</textarea>
+<p class="small">Every connection can be revoked separately. Revocation stops future API access; it does not withdraw existing offers, resolve trades, or erase messages already received.</p><a href="{{ url_for('agents.workspace') }}#agent-connections">View or revoke my connections</a></section>
+{% endblock %}

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Inquiry #{{ conversation.id }} | Liquidity.spot{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-4xl space-y-5 pb-8">
+    <nav class="text-sm text-gfa-grey" aria-label="Breadcrumb"><a href="{{ url_for('inquiries.inbox') }}" class="text-gfa-light hover:text-white">Private inquiry inbox</a><span aria-hidden="true"> / </span>Inquiry #{{ conversation.id }}</nav>
+    <header class="rounded-2xl border border-gfa-light/30 bg-black/30 p-5 sm:p-7">
+        <p class="text-xs font-bold uppercase tracking-wider text-gfa-light">{{ 'P2P offer' if listing.kind == 'p2p' else 'Atomic order' }} #{{ listing.id }}</p>
+        <h1 class="mt-2 text-2xl font-bold text-white sm:text-3xl">Inquiry — no trade accepted</h1>
+        <p class="mt-3 break-words text-gfa-grey">Private conversation between {{ conversation.owner_name }} (listing owner) and {{ conversation.inquirer_name }} (interested person).</p>
+        <p class="mt-3 rounded-lg border border-yellow-500/30 bg-yellow-950/20 p-4 text-sm leading-relaxed text-yellow-100">This conversation does not reserve the listing, create a trade or swap, lock funds, or establish payment instructions. Other inquirers cannot see it. A suggested price is not a changed listing: publish and review the intended terms before accepting anything.</p>
+    </header>
+    <section class="rounded-xl border border-gfa-grey/20 bg-black/30 p-4 sm:p-5" aria-labelledby="inquiry-current-terms">
+        <h2 id="inquiry-current-terms" class="font-bold text-white">Current listing · {{ listing.status }}</h2>
+        <p class="mt-2 break-words text-sm text-gfa-grey">{{ 'Buy' if listing.side == 'buy' else 'Sell' }} {{ listing.amount_hns }} HNS · {{ listing.price }} {{ listing.payment_asset.symbol }}/HNS · {{ listing.total }} {{ listing.payment_asset.symbol }} total, fees extra · {{ listing.payment_asset.network_label }}</p>
+        <a href="{{ listing.review_url }}" class="mt-3 inline-block rounded-lg border border-gfa-light/40 px-4 py-2 text-sm font-bold text-gfa-light hover:bg-gfa-light/10">Review listing separately →</a>
+        <p class="mt-2 text-xs text-gfa-grey">Review does not accept. Any acceptance is a separate, explicit action on the listing page. Availability may have changed.</p>
+    </section>
+    <section class="rounded-2xl border border-gfa-grey/20 bg-black/30 p-4 sm:p-6" aria-labelledby="inquiry-messages-title">
+        <div class="flex flex-wrap items-center justify-between gap-3"><h2 id="inquiry-messages-title" class="text-xl font-bold text-white">Messages</h2>{% if conversation.unread_count %}<span class="rounded-full bg-gfa-light px-3 py-1 text-xs font-bold text-gfa-dark">{{ conversation.unread_count }} unread</span>{% endif %}</div>
+        <p class="mt-2 text-xs leading-relaxed text-gfa-grey">Messages are unverified participant statements. AI messages are labeled and may be mistaken. Never share seed phrases, private keys, API keys or recovery keys.</p>
+        <ol class="mt-5 space-y-4" aria-label="Private inquiry messages">
+            {% for message in messages %}
+            <li class="min-w-0 rounded-xl border {{ 'border-gfa-light/30 bg-gfa-light/5' if message.is_self else 'border-gfa-grey/20 bg-black/20' }} p-4">
+                <div class="flex flex-wrap items-baseline justify-between gap-2"><p class="break-words text-sm font-bold text-white">{{ message.author_name }}{% if message.is_self %} · You{% endif %}{% if message.actor == 'agent' %}<span class="ml-2 inline-block rounded border border-yellow-500/30 px-2 py-0.5 text-xs text-yellow-100">AI agent{% if message.connection_id %} · connection #{{ message.connection_id }}{% endif %}</span>{% endif %}</p><time datetime="{{ message.created_at }}" class="text-xs text-gfa-grey">{{ (message.created_at or '')[:16]|replace('T', ' ') }} UTC</time></div>
+                <p class="mt-3 whitespace-pre-wrap break-words text-sm leading-relaxed text-white">{{ message.content }}</p>
+            </li>
+            {% else %}<li class="py-4 text-sm text-gfa-grey">No messages in this conversation yet.</li>{% endfor %}
+        </ol>
+        {% if has_more %}<p class="mt-4 rounded-lg border border-yellow-500/30 bg-yellow-950/20 p-3 text-sm text-yellow-100">More messages follow this page. Read them before replying. <a href="{{ url_for('inquiries.room', inquiry_id=conversation.id, after=next_cursor) }}" class="font-bold underline underline-offset-4">Next messages →</a></p>{% endif %}
+        {% if messages %}
+        <form method="POST" action="{{ url_for('inquiries.seen', inquiry_id=conversation.id) }}" class="mt-4">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="through_id" value="{{ messages[-1].id }}">
+            <button type="submit" class="rounded-lg border border-gfa-grey/30 px-4 py-2 text-sm text-gfa-grey hover:text-white">Mark these messages read</button>
+        </form>
+        {% endif %}
+    </section>
+    <section class="rounded-2xl border border-gfa-grey/20 bg-black/30 p-5 sm:p-6">
+        {% if can_reply %}
+        <form method="POST" action="{{ url_for('inquiries.room', inquiry_id=conversation.id) }}" class="space-y-4">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="idempotency_key" value="{{ idempotency_key }}">
+            <label for="inquiry-reply" class="block text-lg font-bold text-white">Reply privately</label>
+            <textarea id="inquiry-reply" name="message" required maxlength="1000" rows="5" class="w-full rounded-lg border border-gfa-grey/30 bg-black/50 p-3 text-white" aria-describedby="inquiry-waiting"></textarea>
+            <p id="inquiry-waiting" class="text-sm text-gfa-grey">The other person must check the site or their configured agent. There is no instant-delivery guarantee. Do not send funds based only on this chat.</p>
+            <button type="submit" class="rounded-lg bg-gfa-light px-5 py-3 font-bold text-gfa-dark hover:bg-white">Send inquiry reply</button>
+        </form>
+        {% else %}<p role="status" class="rounded-lg border border-yellow-500/30 bg-yellow-950/20 p-4 text-sm text-yellow-100">{{ blocked_reason or 'This inquiry is read-only. Its history remains available to its participants.' }}</p>{% endif %}
+        {% if not conversation.closed_at %}
+        <details class="mt-5 border-t border-gfa-grey/20 pt-4"><summary class="cursor-pointer text-sm font-bold text-gfa-grey">Close this inquiry</summary><p class="mt-3 text-sm text-gfa-grey">Permanently stop new messages in this conversation. Both participants retain read access to its history. This does not cancel the listing or any trade.</p><form method="POST" action="{{ url_for('inquiries.close', inquiry_id=conversation.id) }}" class="mt-3"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit" class="rounded-lg border border-red-400/40 px-4 py-2 text-sm font-bold text-red-100 hover:bg-red-950/20">Close inquiry permanently</button></form></details>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

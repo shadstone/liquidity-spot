@@ -84,6 +84,7 @@
         {% endif %}
 
         <div class="mt-6 space-y-4">
+            {% include '_listing_inquiries.html' %}
             {% if offer.status == 'open' and is_creator %}
                 <div class="rounded-lg border border-gfa-light/30 bg-gfa-light/10 p-4">
                     <p class="font-bold text-white">Your offer is live, but it has not been matched yet.</p>
