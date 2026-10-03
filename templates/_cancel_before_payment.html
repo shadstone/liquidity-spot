@@ -1,0 +1,15 @@
+{% if can_cancel_before_payment %}
+<section class="my-5 rounded-xl border border-gfa-grey/30 bg-black/25 p-5" aria-labelledby="cancel-before-payment-title">
+    <h2 id="cancel-before-payment-title" class="font-bold text-white">Not going ahead?</h2>
+    <p class="mt-2 text-sm text-gfa-grey">Close this attempt for both parties and move it out of active trades. Your other listings stay unchanged. No waiting period or no-show penalty.</p>
+    <p class="mt-2 text-sm text-yellow-200">Check with your counterparty first. Missing transaction IDs do not prove no funds were sent. If either wallet is signing, broadcasting, or reporting a transaction, do not cancel. Cancellation cannot undo a payment or unlock funds. Any locked Gems bond needs review.</p>
+    <form method="POST" action="{{ cancel_before_payment_url }}" class="mt-4 space-y-3" onsubmit="return confirm('Close this trade for both parties? This does not reverse payments. Your other listings will stay unchanged.')">
+        <input type="hidden" name="cancel_token" value="{{ cancel_before_payment_token }}">
+        <label class="flex items-start gap-2 text-sm text-white">
+            <input type="checkbox" name="confirm_no_payment" value="yes" required class="mt-1">
+            <span>I have confirmed that neither party sent funds or has a transaction in progress.</span>
+        </label>
+        <button type="submit" class="rounded border border-red-400/60 bg-red-950/40 px-5 py-3 font-bold text-red-100 hover:bg-red-900/50">Cancel before payment</button>
+    </form>
+</section>
+{% endif %}

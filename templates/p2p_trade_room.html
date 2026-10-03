@@ -104,6 +104,9 @@
         </div>
     </section>
 
+    {% set cancel_before_payment_url = url_for('main.cancel_before_payment', kind='p2p', id=trade.id) %}
+    {% include '_cancel_before_payment.html' %}
+
     <section class="rounded-xl border border-gfa-grey/15 bg-black/25 p-4 md:p-5" aria-labelledby="progress-title">
         <div class="flex flex-wrap items-baseline justify-between gap-2">
             <h2 id="progress-title" class="font-bold text-white">Trade progress</h2>
