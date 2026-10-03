@@ -1,6 +1,21 @@
 (() => {
     'use strict';
 
+    const noticeStack = document.getElementById('trade-notice-stack');
+    if (noticeStack) {
+        // Recovery and active-trade notices can make the sticky bar taller on
+        // mobile. Keep the guide's section headings below the real stack.
+        const updateAnchorOffset = () => {
+            document.documentElement.style.setProperty('--liquidity-sticky-offset',
+                `${Math.ceil(noticeStack.getBoundingClientRect().height) + 16}px`);
+        };
+        updateAnchorOffset();
+        window.addEventListener('resize', updateAnchorOffset);
+        if (window.ResizeObserver) {
+            new window.ResizeObserver(updateAnchorOffset).observe(noticeStack);
+        }
+    }
+
     const banner = document.getElementById('agent-help-banner');
     const dismiss = document.getElementById('dismiss-agent-help');
     const dismissalKey = 'liquidity-agent-help-hidden-v1';

@@ -12,8 +12,10 @@ function element(properties = {}) {
         ...properties };
 }
 
-function boot({ stored = null, storageBlocked = false, clipboard = undefined, empty = false } = {}) {
+function boot({ stored = null, storageBlocked = false, clipboard = undefined, empty = false, stackHeight = null } = {}) {
     const saved = [];
+    const offsets = [];
+    const resizeCallbacks = [];
     const elements = empty ? {} : {
         'agent-help-banner': element(),
         'dismiss-agent-help': element({ hidden: true }),
@@ -22,16 +24,33 @@ function boot({ stored = null, storageBlocked = false, clipboard = undefined, em
         'copy-agent-prompt': element(),
         'copy-agent-status': element(),
     };
+    if (stackHeight !== null) {
+        elements['trade-notice-stack'] = element({ height: stackHeight,
+            getBoundingClientRect() { return { height: this.height }; } });
+    }
     vm.runInNewContext(source, {
-        document: { getElementById(id) { return elements[id] || null; } },
-        window: { sessionStorage: {
+        document: { getElementById(id) { return elements[id] || null; },
+            documentElement: { style: { setProperty(name, value) { offsets.push([name, value]); } } } },
+        window: { addEventListener(event, callback) { if (event === 'resize') resizeCallbacks.push(callback); },
+            ResizeObserver: class { constructor(callback) { this.callback = callback; }
+                observe() { resizeCallbacks.push(this.callback); } },
+            sessionStorage: {
             getItem() { if (storageBlocked) throw new Error('denied'); return stored; },
             setItem(key, value) { if (storageBlocked) throw new Error('denied'); saved.push([key, value]); },
         } },
         navigator: { clipboard },
     });
-    return { elements, saved };
+    return { elements, saved, offsets, resizeCallbacks };
 }
+
+test('guide anchor offset follows the actual sticky notice height', () => {
+    const { elements, offsets, resizeCallbacks } = boot({ stackHeight: 331.5 });
+    assert.deepEqual(offsets[0], ['--liquidity-sticky-offset', '348px']);
+    assert.equal(resizeCallbacks.length, 2);
+    elements['trade-notice-stack'].height = 76;
+    resizeCallbacks.forEach(callback => callback());
+    assert.deepEqual(offsets.at(-1), ['--liquidity-sticky-offset', '92px']);
+});
 
 test('pages without agent controls do not throw', () => {
     assert.doesNotThrow(() => boot({ empty: true }));
