@@ -60,6 +60,7 @@
                 <a href="{{ url_for('main.opensource') }}" class="hover:text-gfa-light">Open Source</a>
                 {% if session.get('user_id') %}
                     <a href="{{ url_for('main.dashboard') }}" class="hover:text-gfa-light">Dashboard</a>
+                    <a href="{{ url_for('inquiries.inbox') }}" class="inline-flex items-center gap-1.5 hover:text-gfa-light">Inquiries{% if nav_inquiry_unread_count|default(0) > 0 %}<span class="rounded-full bg-gfa-light px-1.5 py-0.5 text-xs font-bold text-gfa-dark" aria-label="{{ nav_inquiry_unread_count }} unread inquiry messages">{{ nav_inquiry_unread_count }}</span>{% endif %}</a>
                     {% if session.get('tier') == 'team' %}
                         <a href="{{ url_for('admin.credit') }}" class="hover:text-gfa-light">Admin</a>
                     {% endif %}
@@ -133,6 +134,7 @@
                     </div>
                     <a href="{{ url_for('main.dashboard') }}" class="hover:text-gfa-light">Notifications{% if nav_notification_count > 0 %} ({{ nav_notification_count }}){% endif %}</a>
                     <a href="{{ url_for('main.dashboard') }}" class="hover:text-gfa-light">Dashboard</a>
+                    <a href="{{ url_for('inquiries.inbox') }}" class="hover:text-gfa-light">Private inquiries{% if nav_inquiry_unread_count|default(0) > 0 %} <span class="rounded-full bg-gfa-light px-2 py-0.5 text-xs font-bold text-gfa-dark">{{ nav_inquiry_unread_count }} unread</span>{% endif %}</a>
                     <a href="{{ url_for('main.profile') }}" class="hover:text-gfa-light">Profile</a>
                     <a href="{{ url_for('main.activity') }}" class="hover:text-gfa-light">Activity</a>
                     <a href="{{ url_for('agents.workspace') }}" class="hover:text-gfa-light">Agent workspace</a>

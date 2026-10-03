@@ -25,6 +25,9 @@ class Config:
     # Operational kill switch. An owner must separately approve a bounded SSO
     # grant before a maker can publish offers or send room replies.
     AGENT_MAKER_ENABLED = os.environ.get('AGENT_MAKER_ENABLED', '').lower() == 'true'
+    # Separate consent and kill switch for agents' private pre-trade enquiries.
+    # Enabling this does not upgrade existing monitoring or maker grants.
+    AGENT_LISTING_CONVERSATIONS_ENABLED = os.environ.get('AGENT_LISTING_CONVERSATIONS_ENABLED', '').lower() == 'true'
     GFAVIP_WALLET_BASE_URL = os.environ.get('GFAVIP_WALLET_BASE_URL', 'https://wallet.gfavip.com')
     BTC_WATCHER_BASE_URL = os.environ.get('BTC_WATCHER_BASE_URL', 'https://blockstream.info/api')
     HNS_WATCHER_BASE_URL = os.environ.get('HNS_WATCHER_BASE_URL')
@@ -44,6 +47,7 @@ class TestingConfig(Config):
     GFAVIP_WALLET_API_KEY = None
     GFAVIP_WALLET_LOOKUP_API_KEY = None
     AGENT_MAKER_ENABLED = False
+    AGENT_LISTING_CONVERSATIONS_ENABLED = False
     BTC_WATCHER_BASE_URL = None
     HNS_WATCHER_BASE_URL = None
     ATOMIC_SWAP_NETWORK = 'regtest'

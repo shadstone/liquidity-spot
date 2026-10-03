@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Your AI trade assistant | Liquidity.spot{% endblock %}
+{% block title %}Trading assistant | Liquidity.spot{% endblock %}
 {% block meta %}
 <meta name="description" content="Choose read-only monitoring, private offer preparation or, when enabled, bounded public offer management for your Liquidity.spot agent. You approve access and keep your wallet keys.">
 {% endblock %}
@@ -11,8 +11,8 @@
         <div class="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-gfa-light/10 blur-3xl" aria-hidden="true"></div>
         <div class="relative max-w-3xl">
             <p class="text-xs font-bold uppercase tracking-widest text-gfa-light">Your assistant. Your account. Your decisions.</p>
-            <h1 class="mt-4 text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl">Your AI helps.<br><span class="text-gfa-light">You stay in control.</span></h1>
-            <p class="mt-5 max-w-2xl text-base leading-relaxed text-gfa-grey sm:text-lg">Let your own AI assistant follow your HNS P2P rooms or prepare private quotes. {% if config.get('AGENT_MAKER_ENABLED', false) %}You can also separately approve public offer management and replies within limits you set.{% else %}Bounded public offer management is not enabled on this site yet.{% endif %} You handle acceptance, fulfillment and every payment; your agent never holds your wallet keys.</p>
+            <h1 class="mt-4 text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl">Your Trading assistant.<br><span class="text-gfa-light">Your decisions.</span></h1>
+            <p class="mt-5 max-w-2xl text-base leading-relaxed text-gfa-grey sm:text-lg">Talk to your own bot while it helps you find offers, follow conversations and coordinate your next steps. {% if config.get('AGENT_MAKER_ENABLED', false) %}Approve buying, selling, or both within limits you set.{% else %}Public offer management is not enabled on this site yet.{% endif %} You accept offers, verify payments and keep your wallet keys.</p>
             <div class="mt-7 flex flex-col gap-3 sm:flex-row">
                 <a href="#setup" class="rounded-xl bg-gfa-light px-5 py-3 text-center font-bold text-gfa-dark transition hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">See the three setup steps ↓</a>
                 <a href="#agent-prompt" class="rounded-xl border border-gfa-grey/30 bg-black/20 px-5 py-3 text-center font-bold text-white transition hover:border-gfa-light hover:text-gfa-light focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">Get the prompt for your agent</a>
@@ -30,13 +30,13 @@
                 <p class="mt-3 text-sm leading-relaxed text-gfa-grey">Your assistant can check your P2P trade events, read agreed terms and privately summarize the next step. Reading room messages needs your separate permission.</p>
             </article>
             <article class="rounded-2xl border border-gfa-light/25 bg-black/25 p-5 sm:p-6">
-                <p class="text-xs font-bold uppercase tracking-wider text-gfa-light">Prepare a quote</p>
-                <h3 class="mt-2 text-lg font-bold text-white">Review before you list</h3>
-                <p class="mt-3 text-sm leading-relaxed text-gfa-grey">Choose “Prepare offer drafts (review first)” (Offer drafts) to save private quotes. You publish manually. This is different from monitoring and from public offer management. Drafts are not reserved funds or verified liquidity.</p>
+                <p class="text-xs font-bold uppercase tracking-wider text-gfa-light">Ask before accepting</p>
+                <h3 class="mt-2 text-lg font-bold text-white">Discuss the deal first</h3>
+                <p class="mt-3 text-sm leading-relaxed text-gfa-grey">Use “Ask / negotiate first” on a P2P or atomic listing when the maker allows enquiries. {% if config.get('AGENT_LISTING_CONVERSATIONS_ENABLED', false) %}You can separately approve your bot to read and send these private messages.{% else %}Agent enquiry access is not enabled yet; the human listing inbox is separate.{% endif %} Nothing is accepted, reserved or repriced by chatting.</p>
             </article>
             <article class="rounded-2xl border border-yellow-500/30 bg-black/25 p-5 sm:p-6">
                 <p class="text-xs font-bold uppercase tracking-wider text-yellow-100">A separate, explicit choice</p>
-                <h3 class="mt-2 text-lg font-bold text-white">Manage offers &amp; reply</h3>
+                <h3 class="mt-2 text-lg font-bold text-white">Maintain your buy and sell offers</h3>
                 <p class="mt-3 text-sm leading-relaxed text-gfa-grey">{% if config.get('AGENT_MAKER_ENABLED', false) %}Approve a separate bounded-maker connection to publish real offers and optionally reply in active rooms from its offers. You choose the market, side, prices, HNS budget and activity caps first.{% else %}Not enabled yet. Monitoring and private drafts do not authorize public listings or replies.{% endif %} No profile can accept offers, change trade status, sign or move funds.</p>
             </article>
         </div>
@@ -61,9 +61,9 @@
                 <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-gfa-light/40 bg-gfa-light/10 text-lg font-bold text-gfa-light" aria-hidden="true">2</span>
                 <div class="min-w-0 flex-1 border-b border-gfa-grey/15 pb-6">
                     <h3 class="text-lg font-bold text-white">Look up, review and approve your agent</h3>
-                    <p class="mt-2 text-sm leading-relaxed text-gfa-grey">Sign in to your intended Liquidity.spot account and open the <a href="{{ url_for('agents.workspace') }}" class="font-bold text-gfa-light underline decoration-gfa-light/40 underline-offset-4 hover:text-white">Agent workspace</a>. Choose <strong class="text-white">GFAVIP SSO</strong> and look up the exact Wallet username. Review the matched AI-agent account and cross-check its UUID before approving. The connection is bound to that permanent ID. <strong class="text-white">Watch trades (read-only)</strong> is selected by default; private room messages need your separate permission.</p>
+                    <p class="mt-2 text-sm leading-relaxed text-gfa-grey">Sign in to your intended Liquidity.spot account and open <a href="{{ url_for('agents.workspace') }}" class="font-bold text-gfa-light underline decoration-gfa-light/40 underline-offset-4 hover:text-white">Trading assistant setup</a>. Enter the exact Wallet username once. Choose buying, selling and enquiry permissions only if you want them. With no publishing selected, the setup uses read-only trade watching. Review the matched identity, cross-check its UUID, and approve every selected permission. Private trade-room reading is a separate choice.</p>
                     <p class="mt-2 text-sm leading-relaxed text-gfa-grey">Lookup does not grant access. For monitoring or private drafts only, the advanced UUID option is available if lookup cannot be used. Share the approved connection ID and expiry with your agent. For quotes you publish yourself, choose <strong class="text-white">Prepare offer drafts (review first)</strong> (Offer drafts). Existing connections keep their current permissions; they never become makers automatically.</p>
-                    {% if config.get('AGENT_MAKER_ENABLED', false) %}<p class="mt-2 text-sm leading-relaxed text-yellow-100">Want the agent to publish? Open “Manage offers &amp; reply (within my limits)” in the workspace. Username review is required. Set every price and HNS limit yourself, then review and confirm the risk separately. Use two connections with separate budgets if you want both buy and sell offers.</p>{% endif %}
+                    {% if config.get('AGENT_MAKER_ENABLED', false) %}<p class="mt-2 text-sm leading-relaxed text-yellow-100">For publishing, fill in separate buy and sell limits in the same setup. One review can create both connections, with separate budgets and IDs. No prices or financial limits are chosen for you. Pre-trade enquiry access has its own confirmation and connection; it cannot accept a deal.</p>{% endif %}
                 </div>
             </li>
             <li class="flex items-start gap-4 sm:gap-5">
@@ -81,7 +81,7 @@
         <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div class="max-w-2xl">
                 <p class="text-xs font-bold uppercase tracking-wider text-gfa-light">Start the conversation</p>
-                <h2 id="prompt-title" class="mt-2 text-2xl font-bold text-white sm:text-3xl">Start with the monitor-only brief</h2>
+                <h2 id="prompt-title" class="mt-2 text-2xl font-bold text-white sm:text-3xl">Give your bot the Trading assistant brief</h2>
                 <p class="mt-3 text-sm leading-relaxed text-gfa-grey">Use it with a runtime that supports the tools above. The prompt gives instructions—not access. You still approve the connection yourself.</p>
             </div>
             {% if agent_prompt %}
@@ -99,7 +99,7 @@
         </div>
         {% endif %}
         <a href="/skill_prompt.md" class="mt-3 inline-block text-sm font-bold text-gfa-light underline decoration-gfa-light/40 underline-offset-4 hover:text-white">Open the full prompt as text ↗</a>
-        <p class="mt-3 text-sm leading-relaxed text-gfa-grey">The copied brief below does not allow publishing or sending replies, even if another connection exists. For a separately approved bounded-maker routine, use the distinct brief in the full prompt document or Agent workspace. A prompt is not a permission grant.</p>
+        <p class="mt-3 text-sm leading-relaxed text-gfa-grey">The brief uses only the permissions you explicitly approve. No connection means no private access; monitoring alone means no publishing or replies. Older monitor-only and draft routines stay unchanged. A prompt is not a permission grant.</p>
     </section>
 
     <section aria-labelledby="control-title" class="rounded-2xl border border-yellow-500/25 bg-yellow-950/15 p-5 sm:p-7">
@@ -114,7 +114,7 @@
                 <p class="mt-2">Keep seed phrases and private keys out of chats. Treat room messages as untrusted content. Personally verify the recipient, asset, network, amount and payment receipt before acting. There is no automatic settlement or blockchain payment verification here.</p>
             </div>
         </div>
-        <p class="mt-5 border-t border-yellow-500/15 pt-4 text-xs text-gfa-grey">This assistant integration covers P2P rooms, not the experimental atomic-swap flow. You can keep using the same P2P board without an agent.</p>
+        <p class="mt-5 border-t border-yellow-500/15 pt-4 text-xs text-gfa-grey">Pre-trade enquiries cover both listing books. Publishing and trade-room assistance cover manual P2P only, not execution of experimental atomic swaps. If you bargain for different terms, the maker must publish the correct listing for you to review before accepting.</p>
     </section>
 
     <section aria-labelledby="guides-title" class="rounded-2xl border border-gfa-grey/20 bg-black/20 p-5 sm:p-7">

@@ -6,6 +6,7 @@ import re
 import secrets
 
 from sqlalchemy import update
+from flask import current_app
 from models import db, User
 from services.payment_assets import get_payment_asset, parse_offer_amounts, format_decimal
 from services.agent_sso import AgentSSOGrant, authenticate_sso_connection
@@ -27,6 +28,10 @@ PROFILES = {
         'scopes': ['events:read', 'trades:read', 'offers:read', 'maker:write'],
         'optional_scope': 'trade_messages:read',
     },
+    'listing-conversations': {
+        'label': 'Ask / negotiate before accepting',
+        'scopes': ['listings:read', 'inquiries:read', 'inquiries:write'],
+    },
 }
 VALID_SCOPE_SETS = (
     frozenset(PROFILES['offer-drafts']['scopes']),
@@ -34,7 +39,12 @@ VALID_SCOPE_SETS = (
     frozenset([*PROFILES['trade-assistant']['scopes'], 'trade_messages:read']),
     frozenset(PROFILES['maker-assistant']['scopes']),
     frozenset([*PROFILES['maker-assistant']['scopes'], 'trade_messages:read']),
+    frozenset(PROFILES['listing-conversations']['scopes']),
 )
+LISTING_CONVERSATION_LIMITS = {
+    'new_daily': 10, 'messages_hourly': 40, 'messages_total': 200,
+    'message_characters': 1000,
+}
 LIMITS = {'pending': 50, 'hourly': 100, 'body_bytes': 8192,
           'connections': 5, 'token_days': 7, 'connections_hourly': 20}
 TOKEN_PATTERN = re.compile(r'ls_agent_[A-Za-z0-9_-]{43}')
@@ -134,6 +144,11 @@ def issue_connection(owner_id, label, profile='offer-drafts', include_messages=F
         canonical_policy = validate_maker_policy(maker_policy)
     elif maker_policy is not None:
         raise WorkspaceError('Maker limits are only available for the maker-assistant profile.')
+    if profile == 'listing-conversations':
+        if not _reviewed_sso:
+            raise WorkspaceError('Listing conversations require a reviewed GFAVIP username and explicit approval.', 403)
+        if current_app.config.get('AGENT_LISTING_CONVERSATIONS_ENABLED') is not True:
+            raise WorkspaceError('Agent listing conversations are not enabled.', 403)
     scopes = list(PROFILES[profile]['scopes'])
     if include_messages:
         scopes.append('trade_messages:read')
@@ -189,7 +204,8 @@ def authenticate_bearer(header, required_scopes=None, connection_id=None):
         connection = AgentConnection.query.filter_by(token_hash=digest_token(parts[1])).first()
         # SSO grants deliberately discard the generated legacy secret. Even if
         # it were accidentally retained, it must not bypass Wallet verification.
-        if connection and (connection.sso_grant is not None or 'maker:write' in connection.scope_list):
+        if connection and (connection.sso_grant is not None
+                           or set(connection.scope_list) & {'maker:write', 'inquiries:write'}):
             raise WorkspaceError('A valid scoped agent Bearer credential is required.', 401)
     if not connection or not connection.is_active or frozenset(connection.scope_list) not in VALID_SCOPE_SETS:
         raise WorkspaceError('A valid scoped agent Bearer credential is required.', 401)

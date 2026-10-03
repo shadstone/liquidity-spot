@@ -90,6 +90,8 @@
                     <label class="block text-gfa-grey mb-1">Notes</label>
                     <textarea name="notes" id="p2p-notes" rows="4" class="w-full bg-black/50 border border-gfa-grey/30 rounded p-2 text-white" placeholder="Preferred contact pace, wallet expectations, confirmation preference, etc."></textarea>
                 </div>
+                <input type="hidden" name="inquiry_setting_present" value="yes">
+                <label for="p2p-allow-pretrade-chat" class="flex items-start gap-3 rounded-lg border border-gfa-light/30 bg-black/20 p-3 text-sm text-gfa-grey"><input id="p2p-allow-pretrade-chat" type="checkbox" name="allow_pretrade_chat" value="yes" checked class="mt-1 h-4 w-4 shrink-0"><span><strong class="text-white">Allow private questions before accepting.</strong> Interested people can ask or negotiate through your inquiry inbox. No trade is accepted, no funds are locked and the listing is not reserved. You can turn this off on the offer page.</span></label>
                 <div class="bg-black/40 border border-gfa-grey/20 rounded p-3 text-sm text-gfa-grey">
                     <div class="flex items-center justify-between gap-4">
                         <span>Transfer total</span>
@@ -166,6 +168,7 @@
                                             </form>
                                         </div>
                                     {% else %}
+                                        {% if offer.allow_pretrade_chat %}<a href="{{ url_for('inquiries.start', kind='p2p', listing_id=offer.id) }}" class="mb-2 block text-xs font-bold text-gfa-light hover:text-white">Ask / negotiate first</a>{% endif %}
                                         {% if offer.quote_network != 'bitcoin' %}
                                         <a href="{{ url_for('main.p2p_offer_details', offer_id=offer.id) }}" class="inline-block rounded bg-gfa-blue px-3 py-1 text-xs text-white hover:bg-blue-600">Review asset &amp; network</a>
                                         {% else %}

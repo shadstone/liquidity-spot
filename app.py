@@ -33,6 +33,9 @@ def create_app(config_name='default'):
     from routes.agent_docs import agent_docs_bp
     app.register_blueprint(agent_docs_bp)
 
+    from routes.inquiries import inquiries_bp
+    app.register_blueprint(inquiries_bp)
+
     @app.before_request
     def enforce_agent_credential_boundary():
         # Existing public guest forms must not silently ignore a scoped token
@@ -70,6 +73,7 @@ def create_app(config_name='default'):
                 'hellobar_count': 0,
                 'hellobar_primary': None,
                 'guest_recovery_notice': None,
+                'nav_inquiry_unread_count': 0,
             }
 
         from models import User, Order, Swap, P2PTrade, P2PTradeParticipantState
@@ -85,6 +89,7 @@ def create_app(config_name='default'):
                 'hellobar_count': 0,
                 'hellobar_primary': None,
                 'guest_recovery_notice': None,
+                'nav_inquiry_unread_count': 0,
             }
         trades = P2PTrade.query.filter(
             (P2PTrade.creator_id == user_id) | (P2PTrade.counterparty_id == user_id)
@@ -186,6 +191,7 @@ def create_app(config_name='default'):
                 'href': url_for('auth.guest_recovery'),
             }
 
+        from services.listing_inquiries import unread_inquiry_count
         return {
             'current_user': current_user,
             'nav_notification_count': len(notifications),
@@ -194,6 +200,7 @@ def create_app(config_name='default'):
             'hellobar_count': len(hellobar_items),
             'hellobar_primary': hellobar_items[0] if hellobar_items else None,
             'guest_recovery_notice': guest_recovery_notice,
+            'nav_inquiry_unread_count': unread_inquiry_count(user_id),
         }
 
     return app

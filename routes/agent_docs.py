@@ -20,8 +20,13 @@ def agent_guide():
     # This public page never creates an identity, permission grant or routine.
     try:
         document = Path(current_app.root_path, *DOCUMENT_PATHS['prompt']).read_text(encoding='utf-8')
-        introduction, separator, brief = document.partition('\n---\n')
-        prompt = (brief if separator else introduction).strip() or None
+        _, marker, trading_brief = document.partition('<!-- trading-assistant-start -->')
+        if marker:
+            trading_brief, end_marker, _ = trading_brief.partition('<!-- trading-assistant-end -->')
+            prompt = trading_brief.strip() if end_marker else None
+        else:
+            introduction, separator, brief = document.partition('\n---\n')
+            prompt = (brief if separator else introduction).strip() or None
     except OSError:
         prompt = None
     return render_template('agent_guide.html', agent_prompt=prompt)

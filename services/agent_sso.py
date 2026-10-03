@@ -49,8 +49,8 @@ def create_sso_grant(owner_id, label, agent_gfavip_user_id,
     agent_id = canonical_wallet_id(agent_gfavip_user_id)
     if agent_id is None:
         raise WorkspaceError('Enter the agent’s permanent GFAVIP Wallet UUID, not a token, email, or handle.')
-    if profile == 'maker-assistant' and reviewed_username is not True:
-        raise WorkspaceError('Maker access requires reviewing the matched GFAVIP username.', 403)
+    if profile in ('maker-assistant', 'listing-conversations') and reviewed_username is not True:
+        raise WorkspaceError('Publishing or enquiry access requires reviewing the matched GFAVIP username.', 403)
     connection, unused_token = issue_connection(owner_id, label, profile, include_messages,
                                                 maker_policy=maker_policy,
                                                 _reviewed_sso=reviewed_username is True)

@@ -233,6 +233,16 @@ browser-session cookies or guest recovery credentials to bypass the boundary.
 
 ### Bounded-maker mode: explicit owner limits
 
+The primary `/agents` screen is **Trading assistant**. It reviews one matched
+GFAVIP agent identity and an explicit selection of watching, buy-side listings,
+sell-side listings and optional pre-trade enquiries. Buying and selling retain
+separate immutable policies, budgets and connection IDs. One signed five-minute
+review issues the entire selected bundle atomically, or none if validation,
+quota, replay or feature checks fail. The existing five-active-connection limit
+and seven-day expiry still apply. Financial limits and consent are never
+prefilled; old grants do not gain permissions. Advanced individual and private
+draft flows remain available.
+
 `AGENT_MAKER_ENABLED` is off by default. A release containing the code is not
 proof that this mode is enabled; check live `/api/agent/v1/capabilities`. Enabling
 the flag never upgrades existing grants. Disabling it prevents future maker
@@ -285,6 +295,51 @@ take and verify a production backup and rehearse recovery. Deploy with the maker
 flag off first, verify schema and all workers, then explicitly enable it.
 Rollback by disabling maker access stops future writes; it does not cancel
 existing offers or resolve pending trades.
+
+### Private pre-trade enquiries
+
+Both manual P2P offers and atomic orders have an **Ask / negotiate first** action.
+It creates a private listing-owner/inquirer conversation, not a trade, swap,
+reservation, changed price or payment. Other interested people cannot read it.
+Messages are escaped plain text. If parties negotiate different terms, the maker
+must publish the intended listing and the human must review it before accepting.
+Neither the bot nor a chat message can accept or settle the offer.
+
+Owners control `allow_pretrade_chat` per listing. New forms default to enabled.
+The additive `ensure_inquiry_schema` migration enables enquiries on existing
+listings as requested, but never resets a saved opt-out on later startups.
+Switching off blocks new conversations and further messages, not historical
+participant reads. Either participant can close their conversation permanently.
+Closed/matched/canceled listings cannot receive further pre-trade messages.
+Users need their signed-in or recovered guest identity; no anonymous identity
+is silently created by opening an enquiry. Absent guest sellers may not reply.
+
+`/inquiries` is the human inbox with unread navigation counts and explicit
+mark-read controls. Reading through the agent API does not clear a human's
+unread state. There is no instant push or external notification delivery.
+
+Agent enquiry access is separately controlled by
+`AGENT_LISTING_CONVERSATIONS_ENABLED` (off by default). Only the unified,
+username-reviewed SSO setup can issue `listing-conversations` with explicit
+enquiry consent: `listings:read inquiries:read inquiries:write`. Existing maker,
+monitor and draft grants cannot access these private conversations. The grant
+does not authorize publishing, accepting, trade-room replies, payment actions
+or wallet access. Human enquiry controls remain available when agent access is
+disabled. Limits are 10 new conversations/day, 40 messages/hour, and 200 messages
+over an agent grant's lifetime; per-owner limits also prevent multiplying grants
+to bypass caps. Messages require stable idempotency keys and are AI-attributed.
+
+This release adds `listing_inquiries`, `listing_inquiry_messages` and
+`listing_inquiry_actions`, plus the boolean on `orders` and `p2p_offers`.
+Before production rollout, create a private database export and provider
+snapshot, restore into an isolated PostgreSQL cluster, compare original-column
+hashes and rehearse concurrent/repeated startup. Verify all existing listings
+initially have the new switch enabled, and that disabling one survives repeat
+migration. Deploy agent enquiries disabled, verify schema and both workers,
+then enable the flag. Never run schema smoke writes against real listings or
+send test questions to actual sellers. Rollback must retain enquiry data and
+owner opt-outs; disabling the agent flag stops future agent access, not human
+inquiries or already-delivered messages.
 
 ### Trade assistant: bootstrap and poll
 

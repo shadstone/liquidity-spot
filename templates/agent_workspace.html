@@ -95,7 +95,7 @@
 {% macro connection_fields(prefix) %}
     <div class="grid gap-4 md:grid-cols-2">
         <div><label for="{{ prefix }}-name" class="mb-1 block text-sm font-bold text-white">Connection name</label><input id="{{ prefix }}-name" name="label" type="text" required maxlength="80" placeholder="My trade assistant" class="w-full rounded-lg border border-gfa-grey/30 bg-black/50 p-3 text-white"><p class="mt-1 text-xs text-gfa-grey">A label for your records, not the agent’s identity.</p></div>
-        <div><label for="{{ prefix }}-profile" class="mb-1 block text-sm font-bold text-white">What should this connection do?</label><select id="{{ prefix }}-profile" name="profile" data-agent-profile class="w-full rounded-lg border border-gfa-grey/30 bg-black/50 p-3 text-white">{% for profile_id, permission_profile in profiles.items() if profile_id != 'maker-assistant' %}<option value="{{ profile_id }}" {{ 'selected' if profile_id == 'trade-assistant' else '' }}>{{ permission_profile.label }}</option>{% endfor %}</select></div>
+        <div><label for="{{ prefix }}-profile" class="mb-1 block text-sm font-bold text-white">What should this connection do?</label><select id="{{ prefix }}-profile" name="profile" data-agent-profile class="w-full rounded-lg border border-gfa-grey/30 bg-black/50 p-3 text-white">{% for profile_id, permission_profile in profiles.items() if profile_id in ('trade-assistant', 'offer-drafts') %}<option value="{{ profile_id }}" {{ 'selected' if profile_id == 'trade-assistant' else '' }}>{{ permission_profile.label }}</option>{% endfor %}</select></div>
     </div>
     <label for="{{ prefix }}-include-messages" class="flex items-start gap-3 rounded-lg border border-yellow-500/25 bg-yellow-950/20 p-4 text-sm text-yellow-100"><input id="{{ prefix }}-include-messages" type="checkbox" name="include_messages" value="yes" data-agent-messages class="mt-1 h-4 w-4 shrink-0"><span><strong>Also allow private room message text.</strong> Optional, for monitoring only in this form. This exposes messages in your own P2P rooms to your agent/runtime. Leave unchecked for terms and event metadata only; private offer preparation has no room access.</span></label>
 {% endmacro %}
@@ -107,19 +107,24 @@
         <div class="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
             <div class="max-w-3xl">
                 <p class="text-xs font-bold uppercase tracking-wider text-gfa-light">Agent workspace · Human-controlled pilot</p>
-                <h1 class="mt-2 text-3xl font-bold text-white md:text-4xl">Choose what your agent can do.</h1>
-                <p class="mt-3 text-gfa-grey">Monitoring watches existing trades. Private preparation saves drafts for your review. {% if maker_enabled %}For public listings, choose “Manage offers &amp; reply” and set every limit yourself.{% else %}Public offer management is not enabled on this site yet.{% endif %} These are separate connections, not steps that silently unlock more access.</p>
+                <h1 class="mt-2 text-3xl font-bold text-white md:text-4xl">Trading assistant</h1>
+                <p class="mt-3 text-gfa-grey">One setup for the same bot: watch trades, optionally publish your BUY and SELL book, and ask listing owners questions. Choose what it may do and review the limits. Existing connections keep their original permissions.</p>
             </div>
             <div class="flex shrink-0 flex-col gap-2">
-                <a href="#agent-connections" class="rounded-lg bg-gfa-light px-4 py-3 text-center text-sm font-bold text-gfa-dark hover:bg-white">Connect an agent ↓</a>
+                <a href="#trading-assistant-setup" class="rounded-lg bg-gfa-light px-4 py-3 text-center text-sm font-bold text-gfa-dark hover:bg-white">Set up my Trading assistant ↓</a>
                 <a href="{{ url_for('main.p2p') }}" class="rounded-lg border border-gfa-light/40 px-4 py-3 text-center text-sm font-bold text-gfa-light hover:bg-gfa-light/10">Open the P2P board ↗</a>
             </div>
         </div>
         <div class="mt-5 rounded-xl border border-yellow-500/30 bg-yellow-950/20 p-4 text-sm leading-relaxed text-yellow-100">
-            <strong>You remain responsible for fulfillment and payment.</strong> No agent connection can accept offers, change trade status, confirm payments or move funds. {% if maker_enabled %}Only a separately approved bounded-maker connection can publish real offers and optionally send replies, within the limits you review.{% else %}Current monitoring and private-draft connections cannot publish offers or send replies.{% endif %} Drafts are private suggestions—not liquidity, reserved funds or verified balances. There is no built-in AI model, instant push, automatic settlement or order auto-fill.
+            <strong>You remain responsible for fulfillment and payment.</strong> No agent connection can accept offers, change trade status, confirm payments or move funds. {% if maker_enabled %}Only a separately approved bounded-maker connection can publish real offers and optionally send trade-room replies, within the limits you review.{% else %}Current monitoring and private-draft connections cannot publish offers or send trade-room replies.{% endif %}{% if listing_conversations_enabled %} Pre-trade questions require their own explicit permission below.{% endif %} Drafts are private suggestions—not liquidity, reserved funds or verified balances. There is no built-in AI model, instant push, automatic settlement or order auto-fill.
         </div>
     </header>
 
+    {% include '_trading_assistant_setup.html' %}
+
+    <details id="agent-reference-tools" class="rounded-2xl border border-gfa-grey/20 bg-black/25 p-5">
+    <summary class="cursor-pointer text-lg font-bold text-white">Advanced: private drafts and read-only routine reference</summary>
+    <div class="mt-5 space-y-6">
     <section class="rounded-2xl border border-gfa-light/30 bg-black/30 p-5 md:p-7" aria-labelledby="routine-title">
         <p class="text-xs font-bold uppercase tracking-wider text-gfa-light">For repeat traders</p>
         <h2 id="routine-title" class="mt-1 text-2xl font-bold text-white">A read-only routine for your existing trades</h2>
@@ -186,9 +191,15 @@
         {% endif %}
     </section>
 
+    </div></details>
+
     <section id="agent-connections" aria-labelledby="connections-title" style="scroll-margin-top: var(--liquidity-sticky-offset, 10rem)" class="rounded-2xl border border-gfa-grey/20 bg-black/30 p-5 md:p-7">
         <p class="text-xs font-bold uppercase tracking-wider text-gfa-light">Access you control</p>
         <h2 id="connections-title" class="mt-1 text-2xl font-bold text-white">Agent connections</h2>
+        <p class="mt-2 text-sm text-gfa-grey">Your Trading assistant may use separate connections for BUY, SELL and listing conversations. Each keeps the exact permissions you approved and can be revoked independently.</p>
+        <details id="agent-legacy-setup" class="mt-5 rounded-xl border border-gfa-grey/20 bg-black/25 p-4">
+        <summary class="cursor-pointer font-bold text-white">Advanced: individual profiles and compatibility setup</summary>
+        <div class="mt-4">
         <p class="mt-2 max-w-3xl text-sm text-gfa-grey">Start with your agent’s exact GFAVIP username. Review the matched account and selected permissions before approving access. This connects the agent’s own identity to your signed-in account; it does not share your browser session or wallet keys.</p>
         <div class="mt-4 grid gap-3 text-sm md:grid-cols-3">
             <p class="rounded-lg border border-gfa-grey/20 bg-black/25 p-3 text-gfa-grey"><strong class="text-white">Watch trades (read-only)</strong><br>Read your event metadata and trade terms. No drafting, publishing or replies.</p>
@@ -290,6 +301,7 @@
         </details>
         <p class="mt-3 text-xs text-yellow-100">Never paste a PowerLobster key, SSO token, recovery key or seed phrase into these forms. <a href="/skill.md" class="font-bold text-gfa-light hover:text-white">Agent setup guide ↗</a></p>
         <p class="mt-2 text-xs text-gfa-grey">Up to {{ limits.connections }} active connections; grants and fallback tokens expire after {{ limits.token_days }} days. SSO approval shows the connection ID. Only the fallback shows a private token once; save that token before returning.</p>
+        </div></details>
         {% if connections %}
         <ul class="mt-6 space-y-3">
             {% for connection in connections %}
@@ -346,6 +358,7 @@
         </div>
     </details>
 </div>
+<script src="{{ url_for('static', filename='js/trading-assistant.js') }}" defer></script>
 <script>
     document.querySelectorAll('[data-agent-access-form]').forEach(function(form) {
         const profile = form.querySelector('[data-agent-profile]');

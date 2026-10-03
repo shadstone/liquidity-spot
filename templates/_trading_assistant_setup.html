@@ -1,0 +1,59 @@
+{% set values = setup_values or {} %}
+<section id="trading-assistant-setup" style="scroll-margin-top: var(--liquidity-sticky-offset, 10rem)" class="rounded-2xl border border-gfa-light/40 bg-black/30 p-5 md:p-7" aria-labelledby="trading-setup-title">
+    <p class="text-xs font-bold uppercase tracking-wider text-gfa-light">One agent · Your choices</p>
+    <h2 id="trading-setup-title" class="mt-1 text-2xl font-bold text-white">Set up your Trading assistant</h2>
+    <p class="mt-3 text-sm text-gfa-grey">Enter your agent once. It can watch your existing P2P trades, and you can separately allow public BUY listings, SELL listings, or questions to listing owners. You review the exact identity and all permissions before anything is approved.</p>
+    {% if lookup_enabled %}
+    <form id="trading-assistant-form" method="POST" action="{{ url_for('agents.review_trading_assistant') }}" class="mt-5 space-y-6">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="grid gap-4 md:grid-cols-2">
+            <div><label for="trading-agent-username" class="mb-1 block font-bold text-white">Agent’s exact GFAVIP username</label><input id="trading-agent-username" name="agent_username" required maxlength="201" autocomplete="off" autocapitalize="off" spellcheck="false" class="w-full rounded-lg border border-gfa-grey/30 bg-black/50 p-3 text-white"{% if values.get('agent_username') %} value="{{ values.get('agent_username') }}"{% endif %}><p class="mt-1 text-xs text-gfa-grey">Ask the agent for its username—not its API key or your own username.</p></div>
+            <div><label for="trading-agent-label" class="mb-1 block font-bold text-white">Name for your assistant</label><input id="trading-agent-label" name="label" required maxlength="64" class="w-full rounded-lg border border-gfa-grey/30 bg-black/50 p-3 text-white"{% if values.get('label') %} value="{{ values.get('label') }}"{% endif %}><p class="mt-1 text-xs text-gfa-grey">A label for your records. It does not change the account granting access.</p></div>
+        </div>
+        <div class="rounded-xl border border-gfa-grey/20 p-4 text-sm text-gfa-grey">
+            <h3 class="font-bold text-white">Always included: watch your P2P trades</h3>
+            <p class="mt-1">Read your trade terms and event updates. If you choose no publishing options, this remains a read-only connection. Your runtime must schedule its own checks; this form does not start a bot.</p>
+            <label class="mt-4 flex items-start gap-3 text-yellow-100"><input id="trading-include-messages" type="checkbox" name="include_messages" value="yes" class="mt-1 h-4 w-4 shrink-0"{% if values.get('include_messages') == 'yes' %} checked{% endif %}><span><strong>Also allow reading private trade-room message text.</strong> Optional. This shares your P2P room chat with the agent/runtime. Reading messages does not give it permission to send replies.</span></label>
+        </div>
+        <fieldset class="space-y-4">
+            <legend class="text-lg font-bold text-white">Optional: publish my BUY and/or SELL offers</legend>
+            <p class="text-sm text-gfa-grey">These are real public P2P listings, not private drafts. Choose either side or both. Give each side its own asset/network, price range and budget. No financial values are filled in for you.</p>
+            {% if maker_enabled %}
+            {% for side in ('buy', 'sell') %}
+            <div class="rounded-xl border border-yellow-500/30 bg-black/25 p-4" data-trading-side="{{ side }}">
+                <label class="flex items-start gap-3 font-bold text-white"><input id="trading-publish-{{ side }}" type="checkbox" name="publish_{{ side }}" value="yes" data-publish-side class="mt-1 h-4 w-4 shrink-0"{% if values.get('publish_' ~ side) == 'yes' %} checked{% endif %}><span>Let my agent publish {{ side|upper }} HNS offers</span></label>
+                <div data-side-fields class="mt-4 space-y-4">
+                    <p class="text-sm text-yellow-100">Fill these fields only if you selected {{ side|upper }} above. All publishing limits are required for that side.</p>
+                    <div><label for="trading-{{ side }}-asset" class="mb-1 block text-sm font-bold text-white">{{ side|upper }} payment asset and network</label><select id="trading-{{ side }}-asset" name="{{ side }}_payment_asset" data-policy-required class="w-full rounded-lg border border-gfa-grey/30 bg-black/50 p-3 text-white"><option value="" {% if not values.get(side ~ '_payment_asset') %}selected{% endif %}>Choose one asset and network</option>{% for asset_id, asset in payment_assets.items() %}<option value="{{ asset_id }}" {% if values.get(side ~ '_payment_asset') == asset_id %}selected{% endif %}>{{ asset.label }}</option>{% endfor %}</select></div>
+                    <div class="grid gap-4 md:grid-cols-2">
+                    {% for name, title in [('min_price', 'Minimum price per HNS'), ('max_price', 'Maximum price per HNS'), ('max_offer_hns', 'Maximum HNS per offer'), ('total_hns_budget', 'Lifetime published HNS budget')] %}
+                        <div><label for="trading-{{ side }}-{{ name }}" class="mb-1 block text-sm font-bold text-white">{{ title }}</label><input id="trading-{{ side }}-{{ name }}" name="{{ side }}_{{ name }}" type="text" inputmode="decimal" maxlength="80" pattern="[0-9]+(\.[0-9]+)?" data-policy-required class="w-full rounded-lg border border-gfa-grey/30 bg-black/50 p-3 text-white"{% if values.get(side ~ '_' ~ name) %} value="{{ values.get(side ~ '_' ~ name) }}"{% endif %}></div>
+                    {% endfor %}
+                        <div><label for="trading-{{ side }}-open" class="mb-1 block text-sm font-bold text-white">Maximum open offers (1–10)</label><input id="trading-{{ side }}-open" name="{{ side }}_max_open_offers" type="number" min="1" max="10" step="1" data-policy-required class="w-full rounded-lg border border-gfa-grey/30 bg-black/50 p-3 text-white"{% if values.get(side ~ '_max_open_offers') %} value="{{ values.get(side ~ '_max_open_offers') }}"{% endif %}></div>
+                        <div><label for="trading-{{ side }}-hourly" class="mb-1 block text-sm font-bold text-white">Maximum new offers/hour (1–20)</label><input id="trading-{{ side }}-hourly" name="{{ side }}_max_offers_per_hour" type="number" min="1" max="20" step="1" data-policy-required class="w-full rounded-lg border border-gfa-grey/30 bg-black/50 p-3 text-white"{% if values.get(side ~ '_max_offers_per_hour') %} value="{{ values.get(side ~ '_max_offers_per_hour') }}"{% endif %}></div>
+                    </div>
+                    <p class="text-xs text-yellow-100">Prices are chosen payment-asset units per HNS. The lifetime budget is HNS, not USDT or your wallet balance. Every published offer consumes it; cancellation does not restore it. BUY and SELL budgets are separate, not shared or verified funds.</p>
+                    <label class="flex items-start gap-3 text-sm text-white"><input id="trading-{{ side }}-replies" name="{{ side }}_allow_replies" type="checkbox" value="yes" data-side-replies class="mt-1 h-4 w-4 shrink-0"{% if values.get(side ~ '_allow_replies') == 'yes' %} checked{% endif %}><span><strong>Allow AI-labeled replies in active rooms from these {{ side|upper }} offers.</strong> Optional, separate from reading private messages. The agent cannot reply in unrelated rooms.</span></label>
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <div><label for="trading-{{ side }}-reply-hourly" class="mb-1 block text-sm font-bold text-white">Maximum replies/hour (1–20)</label><input id="trading-{{ side }}-reply-hourly" name="{{ side }}_max_replies_per_hour" type="number" min="1" max="20" step="1" data-reply-limit class="w-full rounded-lg border border-gfa-grey/30 bg-black/50 p-3 text-white"{% if values.get(side ~ '_max_replies_per_hour') %} value="{{ values.get(side ~ '_max_replies_per_hour') }}"{% endif %}></div>
+                        <div><label for="trading-{{ side }}-reply-total" class="mb-1 block text-sm font-bold text-white">Lifetime replies (1–200)</label><input id="trading-{{ side }}-reply-total" name="{{ side }}_max_replies_total" type="number" min="1" max="200" step="1" data-reply-limit class="w-full rounded-lg border border-gfa-grey/30 bg-black/50 p-3 text-white"{% if values.get(side ~ '_max_replies_total') %} value="{{ values.get(side ~ '_max_replies_total') }}"{% endif %}></div>
+                    </div>
+                    <p class="text-xs text-gfa-grey">Leave reply limits blank unless replies are selected. Limits are fixed after approval; to change them, revoke and review a new connection.</p>
+                </div>
+            </div>
+            {% endfor %}
+            {% else %}<p class="rounded-lg border border-yellow-500/25 p-3 text-sm text-yellow-100">Public offer management is not enabled on this site yet. This setup cannot grant publishing or trade-room replies.</p>{% endif %}
+        </fieldset>
+        <div class="rounded-xl border border-gfa-grey/20 p-4 text-sm text-gfa-grey">
+            <h3 class="font-bold text-white">Optional: ask listing owners before accepting</h3>
+            {% if listing_conversations_enabled %}
+            <label class="mt-3 flex items-start gap-3 text-white"><input id="trading-ask-owners" type="checkbox" name="ask_listing_owners" value="yes" class="mt-1 h-4 w-4 shrink-0"{% if values.get('ask_listing_owners') == 'yes' %} checked{% endif %}><span><strong>Ask/negotiate with listing owners before accepting.</strong> Let the agent check P2P and atomic listings and send AI-labeled questions where the owner permits chat. It can read and reply in the private listing conversations available to this grant. This does not let it accept an offer, make a binding agreement, enter an atomic swap, or change a listing.</span></label>
+            <p class="mt-3">Fixed limits: {{ listing_conversation_limits.new_daily }} new conversations/day, {{ listing_conversation_limits.messages_hourly }} messages/hour, {{ listing_conversation_limits.messages_total }} messages over the connection’s lifetime; {{ listing_conversation_limits.message_characters }} characters per message. Private inquiry text is shared with your agent/runtime only if you select this access.</p>
+            {% else %}<p class="mt-2">Agent listing conversations are not enabled on this site yet. Your assistant can suggest public listings for you to review manually.</p>{% endif %}
+        </div>
+        <p class="rounded-lg border border-yellow-500/30 bg-yellow-950/20 p-4 text-sm text-yellow-100"><strong>You handle acceptance and payment.</strong> No selection permits accepting offers, changing trade status, confirming payment, signing or moving funds. Published offers have no escrow or Gem bond. Revoking access stops future API work; it does not withdraw offers or resolve trades already underway.</p>
+        <button type="submit" class="rounded-lg bg-gfa-light px-5 py-3 font-bold text-gfa-dark hover:bg-white">Find my agent and review this setup →</button>
+        <p class="text-xs text-gfa-grey">Nothing is granted yet. The review shows every permission and connection this setup will create. Up to {{ limits.connections }} active connections total; each expires after {{ limits.token_days }} days. Existing grants are never upgraded automatically.</p>
+    </form>
+    {% else %}<p class="mt-4 rounded-lg border border-yellow-500/30 p-4 text-sm text-yellow-100">Username lookup is not available right now. Unified setup needs a verified username. Advanced options below still support monitoring or private drafts with a verified Wallet UUID.</p>{% endif %}
+</section>

@@ -88,8 +88,10 @@ class AgentGuideTests(unittest.TestCase):
 
     def test_copy_prompt_comes_from_existing_routine_document(self):
         source = Path(self.app.root_path, 'docs', 'agent-prompt.md').read_text(encoding='utf-8')
-        before, delimiter, expected = source.partition('\n---\n')
-        self.assertTrue(delimiter, 'Routine document needs the copyable-prompt delimiter.')
+        before, delimiter, expected = source.partition('<!-- trading-assistant-start -->')
+        self.assertTrue(delimiter, 'Routine document needs the Trading assistant marker.')
+        expected, end, _ = expected.partition('<!-- trading-assistant-end -->')
+        self.assertTrue(end)
         self.assertTrue(before.strip())
         _, document = self.guide()
         textarea = document.by_id('agent-setup-prompt')
