@@ -159,6 +159,57 @@ The app should never ask for:
 
 For now, users should treat all trades as manual P2P coordination and verify every step out of band.
 
+## Agent Workspace: Draft-only Pilot
+
+The signed-in **Agent workspace** at `/agents` lets an owner connect their own
+agent or script to prepare private offer proposals. This does not install a
+model, run a bot, publish liquidity, accept or fill orders, read private trade
+messages, confirm payments, or sign/send funds. Drafts are not public offers,
+verified balances, reservations or promises to trade.
+
+Create a named connection in the workspace. Its token has only
+`drafts:read drafts:write` permissions, expires after seven days and is shown
+once on a standalone page without external scripts. Store it privately; do not
+put it in URLs, model prompts, logs, screenshots or source control. The server
+stores a digest, not the recoverable token. Revoke a connection in the workspace
+to stop its API access; existing drafts, real offers and trades are unaffected.
+
+API contract:
+
+- `GET /api/agent/v1/capabilities`: public supported payment routes and limits.
+- `GET /api/agent/v1/drafts`: all private drafts belonging to the connection's
+  owner, up to 100 per page. Continue with `?before_id=<next_before_id>` when
+  the response supplies a cursor.
+- `POST /api/agent/v1/drafts`: create a private draft using JSON fields `side`
+  (`buy` or `sell` HNS), `payment_asset`, `amount_hns`, `price` and optional
+  `notes`. Monetary values must be plain decimal **strings**. Use a registry
+  payment identifier such as `usdc-base`, not a ticker alone.
+
+Private endpoints require `Authorization: Bearer <token>`. Draft creation also
+requires `Idempotency-Key`: use a fresh key for each distinct draft and reuse
+the same key and payload only when retrying that request.
+An owner may have five active connections, 50 pending drafts and 100 new draft
+creations per hour across those connections; reads and idempotent replays do
+not consume that creation quota.
+
+For example, with a token already set privately as `LIQUIDITY_AGENT_TOKEN` and
+the application running locally:
+
+```bash
+curl --request POST 'http://localhost:8000/api/agent/v1/drafts' \
+  --header "Authorization: Bearer $LIQUIDITY_AGENT_TOKEN" \
+  --header 'Content-Type: application/json' \
+  --header 'Idempotency-Key: example-draft-001' \
+  --data '{"side":"sell","payment_asset":"usdc-base","amount_hns":"1000","price":"0.0035","notes":"Example only; owner review required."}'
+```
+
+The sample price is arbitrary, not market data. Use HTTPS for remote access.
+The owner must review the amount, price, total, network, token contract and
+ability to fulfill the trade, then open the existing P2P board and **manually
+create** any desired offer. The workspace link opens a blank form: it does not
+approve, auto-fill or publish the draft. Dismissing a draft changes only that
+private proposal. Wallet keys always remain with the human owner.
+
 ## Atomic Swap Wallet Adapters
 
 Liquidity Spot exposes machine-readable swap intents for local wallet helpers:

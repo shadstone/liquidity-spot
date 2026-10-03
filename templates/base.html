@@ -103,6 +103,7 @@
                             <a href="{{ url_for('main.profile') }}" class="block rounded px-3 py-2 hover:bg-white/5 hover:text-gfa-light">View Profile</a>
                             <a href="{{ url_for('main.activity') }}" class="block rounded px-3 py-2 hover:bg-white/5 hover:text-gfa-light">Activity</a>
                             <a href="{{ url_for('main.dashboard') }}" class="block rounded px-3 py-2 hover:bg-white/5 hover:text-gfa-light">Dashboard</a>
+                            <a href="{{ url_for('agents.workspace') }}" class="block rounded px-3 py-2 hover:bg-white/5 hover:text-gfa-light">Agent workspace</a>
                             {% if session.get('auth_method') == 'guest' %}
                                 <a href="{{ url_for('auth.guest_recovery') }}" class="block rounded px-3 py-2 hover:bg-white/5 hover:text-gfa-light">Guest Recovery Key</a>
                                 <a href="{{ url_for('auth.login') }}" class="block rounded px-3 py-2 text-gfa-light hover:bg-white/5 hover:text-white">Connect GFAVIP for Gems</a>
@@ -134,6 +135,7 @@
                     <a href="{{ url_for('main.dashboard') }}" class="hover:text-gfa-light">Dashboard</a>
                     <a href="{{ url_for('main.profile') }}" class="hover:text-gfa-light">Profile</a>
                     <a href="{{ url_for('main.activity') }}" class="hover:text-gfa-light">Activity</a>
+                    <a href="{{ url_for('agents.workspace') }}" class="hover:text-gfa-light">Agent workspace</a>
                     {% if session.get('auth_method') == 'guest' %}
                         <a href="{{ url_for('auth.guest_recovery') }}" class="hover:text-gfa-light">Guest Recovery Key</a>
                         <a href="{{ url_for('auth.login') }}" class="hover:text-gfa-light">Connect GFAVIP for Gems</a>

@@ -27,9 +27,24 @@ def create_app(config_name='default'):
     from routes.admin import admin_bp
     app.register_blueprint(admin_bp)
 
+    from routes.agents import agents_bp
+    app.register_blueprint(agents_bp)
+
+    @app.before_request
+    def enforce_draft_credential_boundary():
+        # Existing public guest forms must not silently ignore a draft token
+        # and publish as a newly-created guest. This is not global bot blocking.
+        scheme, _, credential = request.headers.get('Authorization', '').partition(' ')
+        if (scheme.lower() == 'bearer' and credential.strip().lower().startswith('ls_agent_')
+                and not request.path.startswith('/api/agent/v1/')):
+            response = jsonify({'error': 'Draft-only credentials are accepted only by /api/agent/v1/ endpoints.'})
+            response.status_code = 403
+            response.headers['Cache-Control'] = 'no-store, private'
+            return response
+
     @app.after_request
     def add_wallet_adapter_cors_headers(response):
-        if request.path.startswith('/api/'):
+        if request.path.startswith('/api/') and not request.path.startswith('/api/agent/'):
             response.headers['Access-Control-Allow-Origin'] = '*'
             response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
             response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'

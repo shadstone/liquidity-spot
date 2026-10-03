@@ -1,0 +1,159 @@
+{% if issued_token %}
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="no-referrer">
+    <title>Save your agent credential | Liquidity.spot</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; background: #0a281b; color: #f4fbf7; font: 16px/1.6 system-ui, sans-serif; }
+        main { max-width: 760px; margin: 8vh auto; padding: 28px; }
+        section { padding: 28px; border: 1px solid #3d8260; border-radius: 18px; background: #103524; }
+        h1 { margin: 8px 0 18px; line-height: 1.2; font-size: 30px; }
+        p { color: #d2e2d8; }
+        .eyebrow { color: #6ee2a6; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; }
+        label { display: block; margin-bottom: 8px; font-weight: 700; }
+        textarea { width: 100%; min-height: 130px; padding: 14px; border: 1px solid #72af8b; border-radius: 8px; background: #071c12; color: #f4fbf7; font: 15px/1.5 ui-monospace, monospace; resize: vertical; }
+        .warning { background: #453719; border: 1px solid #866b2c; border-radius: 8px; padding: 14px; }
+        a { display: inline-block; margin-top: 12px; padding: 12px 18px; background: #29b973; color: #071c12; border-radius: 8px; font-weight: 700; text-decoration: none; }
+        a:focus-visible, textarea:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+        @media (max-width: 480px) { main { margin: 18px auto; padding: 14px; } section { padding: 20px; } h1 { font-size: 26px; } }
+    </style>
+</head>
+<body>
+{% else %}
+{% extends "base.html" %}
+{% endif %}
+
+{% block content %}
+{% if issued_token %}
+<main>
+    <section>
+        <p class="eyebrow">Save once · Keep private</p>
+        <h1>Your draft-only agent credential</h1>
+        <p>This credential is shown only on this response. Save it securely before leaving. It cannot be recovered later; revoke and replace it if lost.</p>
+        <label for="issued-agent-token">Agent token</label>
+        <textarea id="issued-agent-token" readonly spellcheck="false" autocapitalize="off" autocomplete="off" aria-describedby="token-copy-help">{{ issued_token }}</textarea>
+        <p id="token-copy-help">Select the text and copy it into your agent’s private credential store. Do not put it in a URL, screenshot, trade-room message, shared prompt or public repository.</p>
+        <p class="warning"><strong>Draft-only access.</strong> This token can prepare offer drafts for your account. It cannot publish or accept an offer, move funds, confirm payment, or access wallet keys. Creating it does not install an AI model or start a bot.</p>
+        <p>You can revoke the connection from the workspace at any time. Revocation does not cancel your real offers or trades.</p>
+        <a href="{{ url_for('agents.workspace') }}">I’ve saved it — return to workspace</a>
+    </section>
+</main>
+{% else %}
+<div class="mx-auto max-w-6xl space-y-6 pb-8">
+    <header class="rounded-2xl border border-gfa-light/30 bg-black/35 p-6 md:p-8">
+        <div class="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+            <div class="max-w-3xl">
+                <p class="text-xs font-bold uppercase tracking-wider text-gfa-light">Agent workspace · Draft-only pilot</p>
+                <h1 class="mt-2 text-3xl font-bold text-white md:text-4xl">Prepare with an agent. Decide yourself.</h1>
+                <p class="mt-3 text-gfa-grey">Connected agents prepare offers; they cannot publish, accept trades, send funds or confirm payments. You review each draft, then manually create any real offer on the existing P2P board.</p>
+            </div>
+            <a href="{{ url_for('main.p2p') }}" class="shrink-0 rounded-lg border border-gfa-light/40 px-4 py-3 text-center text-sm font-bold text-gfa-light hover:bg-gfa-light/10">Open the P2P board ↗</a>
+        </div>
+        <div class="mt-5 rounded-xl border border-yellow-500/30 bg-yellow-950/20 p-4 text-sm leading-relaxed text-yellow-100">
+            <strong>Drafts are not liquidity.</strong> They are private suggestions—not public orders, reserved funds, balance verification or a promise to trade. Keep wallet keys in your own wallet. This pilot has no built-in AI model, automatic settlement or order auto-fill.
+        </div>
+    </header>
+
+    <section aria-labelledby="drafts-title" class="space-y-4">
+        <div class="flex flex-wrap items-baseline justify-between gap-2">
+            <div><p class="text-xs font-bold uppercase tracking-wider text-gfa-light">Human review required</p><h2 id="drafts-title" class="mt-1 text-2xl font-bold text-white">Offer drafts</h2></div>
+            <p class="text-sm text-gfa-grey">Pending and recently dismissed · Private to your account</p>
+        </div>
+        {% if drafts %}
+        <div class="grid gap-4 lg:grid-cols-2">
+            {% for draft in drafts %}
+            {% set terms = draft.terms %}
+            {% set asset = terms.payment_asset %}
+            <article class="min-w-0 rounded-2xl border border-gfa-grey/20 bg-black/30 p-5">
+                <div class="flex flex-wrap items-start justify-between gap-2">
+                    <div><p class="text-xs text-gfa-grey">Draft #{{ draft.id }} · {{ draft.connection.label }}</p><h3 class="mt-1 text-xl font-bold text-white">{{ 'Buy' if terms.side == 'buy' else 'Sell' }} {{ terms.amount_hns }} HNS</h3></div>
+                    <span class="rounded-full border border-yellow-500/30 bg-yellow-950/20 px-3 py-1 text-xs font-bold text-yellow-100">{{ 'Dismissed' if draft.status == 'dismissed' else 'Not published' }}</span>
+                </div>
+                <dl class="mt-4 space-y-3 text-sm">
+                    <div class="flex justify-between gap-4"><dt class="text-gfa-grey">Price per HNS</dt><dd class="break-all text-right font-mono text-white">{{ terms.price }} {{ asset.symbol }}</dd></div>
+                    <div class="flex justify-between gap-4"><dt class="text-gfa-grey">Proposed total</dt><dd class="break-all text-right font-mono text-white">{{ terms.total }} {{ asset.symbol }}</dd></div>
+                    <div class="flex justify-between gap-4"><dt class="text-gfa-grey">Payment network</dt><dd class="text-right font-bold text-gfa-light">{{ asset.network_label }}{% if asset.chain_id %} · {{ asset.chain_id }}{% endif %}</dd></div>
+                    <div class="flex justify-between gap-4"><dt class="text-gfa-grey">HNS network</dt><dd class="text-right text-white">Handshake mainnet</dd></div>
+                    {% if asset.contract %}<div><dt class="text-gfa-grey">Token contract — not a receiving address</dt><dd class="mt-1 break-all font-mono text-xs text-white">{{ asset.contract }}</dd></div>{% endif %}
+                    <div class="flex justify-between gap-4"><dt class="text-gfa-grey">Prepared</dt><dd class="text-right text-white">{{ draft.created_at.strftime('%Y-%m-%d %H:%M') }} UTC</dd></div>
+                </dl>
+                {% if draft.notes %}<div class="mt-4 border-t border-gfa-grey/15 pt-4"><h4 class="text-xs font-bold uppercase tracking-wide text-gfa-grey">Agent’s proposed note</h4><p class="mt-2 whitespace-pre-wrap break-words text-sm text-white">{{ draft.notes }}</p></div>{% endif %}
+                <p class="mt-4 text-xs leading-relaxed text-gfa-grey">Check the price, amount, network and your ability to fulfill this trade. Fees are additional. An agent’s note is a suggestion, not an instruction or proof of funds.</p>
+                {% if draft.status == 'pending' %}
+                <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <a href="{{ url_for('main.p2p') }}" class="rounded-lg bg-gfa-light px-4 py-2.5 text-center text-sm font-bold text-gfa-dark hover:bg-white">Review, then create manually on P2P</a>
+                    <form method="POST" action="{{ url_for('agents.dismiss_draft', draft_id=draft.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="w-full rounded-lg border border-gfa-grey/20 px-4 py-2.5 text-sm text-gfa-grey hover:border-gfa-grey/40 hover:text-white">Dismiss draft</button>
+                    </form>
+                </div>
+                <p class="mt-2 text-xs text-gfa-grey">The P2P link opens a blank form. It does not publish, approve or copy this draft.</p>
+                {% else %}
+                <p class="mt-4 text-xs text-gfa-grey">Dismissed {{ draft.dismissed_at.strftime('%Y-%m-%d %H:%M') if draft.dismissed_at else '' }} UTC. This did not change any public offer or trade.</p>
+                {% endif %}
+            </article>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="rounded-2xl border border-dashed border-gfa-light/30 bg-black/25 p-6 md:p-8">
+            <h3 class="text-lg font-bold text-white">No pending drafts yet</h3>
+            <p class="mt-2 max-w-3xl text-sm leading-relaxed text-gfa-grey">Create a scoped connection below, then configure your own agent or script to submit a draft through the API. Nothing runs automatically when you create a connection. You can keep trading normally on the P2P board without an agent.</p>
+        </div>
+        {% endif %}
+    </section>
+
+    <section aria-labelledby="connections-title" class="rounded-2xl border border-gfa-grey/20 bg-black/30 p-5 md:p-7">
+        <p class="text-xs font-bold uppercase tracking-wider text-gfa-light">Access you control</p>
+        <h2 id="connections-title" class="mt-1 text-2xl font-bold text-white">Agent connections</h2>
+        <p class="mt-2 max-w-3xl text-sm text-gfa-grey">Issue a separate credential for each agent. It grants only the documented pilot permissions and does not share your browser session, guest recovery key or wallet credentials.</p>
+        <form method="POST" action="{{ url_for('agents.create_connection') }}" class="mt-5 flex flex-col items-stretch gap-3 sm:flex-row sm:items-end">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="min-w-0 flex-1"><label for="agent-name" class="mb-1 block text-sm font-bold text-white">Connection name</label><input id="agent-name" name="label" type="text" required maxlength="80" placeholder="My offer assistant" class="w-full rounded-lg border border-gfa-grey/30 bg-black/50 p-3 text-white"></div>
+            <button type="submit" class="shrink-0 rounded-lg bg-gfa-blue px-5 py-3 font-bold text-white hover:bg-blue-600">Create draft-only connection</button>
+        </form>
+        <p class="mt-2 text-xs text-gfa-grey">Up to {{ limits.connections }} active connections; tokens expire after {{ limits.token_days }} days. The private token is shown once on a separate page. Save it before returning.</p>
+        {% if connections %}
+        <ul class="mt-6 space-y-3">
+            {% for connection in connections %}
+            <li class="flex flex-col gap-3 rounded-xl border border-gfa-grey/15 bg-black/25 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div class="min-w-0"><p class="break-words font-bold text-white">{{ connection.label }}</p><p class="mt-1 text-xs text-gfa-grey">{% if connection.revoked_at %}Revoked{% elif not connection.is_active %}Expired{% else %}Expires {{ connection.expires_at.strftime('%Y-%m-%d %H:%M') }} UTC{% endif %} · Draft-only access</p><p class="mt-1 text-xs text-gfa-grey">Last used: {{ connection.last_used_at.strftime('%Y-%m-%d %H:%M') ~ ' UTC' if connection.last_used_at else 'Never' }}</p></div>
+                {% if not connection.revoked_at %}
+                <form method="POST" action="{{ url_for('agents.revoke_connection', connection_id=connection.id) }}" class="shrink-0">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="w-full rounded-lg border border-red-400/40 px-4 py-2 text-sm font-bold text-red-100 hover:bg-red-950/30">Revoke access</button>
+                </form>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}<p class="mt-5 text-sm text-gfa-grey">No agent connections. Your existing offers and trades are unchanged.</p>{% endif %}
+        <p class="mt-4 text-xs text-gfa-grey">Revoking a connection stops that credential from making API requests. It does not delete drafts, cancel public offers or affect real trades.</p>
+    </section>
+
+    <details class="rounded-2xl border border-gfa-grey/20 bg-black/30 p-5 md:p-7">
+        <summary class="cursor-pointer text-lg font-bold text-white">Developer setup: connect your agent or script</summary>
+        <div class="mt-5 space-y-4 text-sm text-gfa-grey">
+            <p>No model is hosted or configured by this page. Your own client supplies the draft; the server validates its allowed payment route and decimal amounts. Keep the token out of model prompts and logs.</p>
+            <p><a href="{{ url_for('agents.capabilities') }}" class="font-bold text-gfa-light hover:text-white">Read the capability endpoint</a> for the exact routes, supported payment assets and limitations.</p>
+            <p>Example only: first set <code>LIQUIDITY_AGENT_TOKEN</code> privately in your local environment. Never replace the placeholder with a credential in a shared document. Use a fresh idempotency key for each distinct draft; reuse it only to retry that same request.</p>
+            <pre class="max-w-full overflow-x-auto rounded-xl border border-gfa-grey/20 bg-black/40 p-4 text-xs leading-relaxed text-gfa-grey"><code>curl --request POST 'https://liquidity.spot/api/agent/v1/drafts' \
+  --header "Authorization: Bearer $LIQUIDITY_AGENT_TOKEN" \
+  --header 'Content-Type: application/json' \
+  --header 'Idempotency-Key: example-draft-001' \
+  --data '{"side":"sell","amount_hns":"1000","payment_asset":"usdc-base","price":"0.0035","notes":"Example draft only; owner must review."}'</code></pre>
+            <p>This submits a private draft, not an order. The example price is arbitrary and is not market data or trading advice.</p>
+            <p>Scopes: <code>drafts:read drafts:write</code>. Each connection can read all drafts belonging to its owner. Limits across that owner’s connections: {{ limits.pending }} pending drafts and {{ limits.hourly }} new draft creations per hour; reads and identical retries do not use that creation quota. Maximum request body: {{ limits.body_bytes }} bytes. Draft access does not include private trade-room messages.</p>
+        </div>
+    </details>
+</div>
+{% endif %}
+{% endblock %}
+
+{% if issued_token %}
+</body>
+</html>
+{% endif %}
