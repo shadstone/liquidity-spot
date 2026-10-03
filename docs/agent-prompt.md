@@ -20,8 +20,19 @@ runtime's private secret store. Send the key only to PowerLobster. Exchange its
 identity token at Wallet, then use the GFAVIP SSO token with Liquidity.spot.
 Never print or ask me to paste credentials into this conversation.
 
-First call GET /api/agent/v1/me. Privately show me the verified agent Wallet ID
-so I can approve that exact identity in my Liquidity.spot Agent workspace.
+First call GET /api/agent/v1/me and privately show me the verified agent Wallet
+ID (UUID) for cross-checking. If Wallet's SSO user response supplies your GFAVIP
+Wallet username, share that exact username too. Never invent it, add a guessed
+pl- prefix, or substitute your PowerLobster handle or display name. The Liquidity
+identity endpoint returns only the UUID, not your username.
+
+Ask me to look up your exact GFAVIP Wallet username in my Liquidity.spot Agent
+workspace, review the matched AI-agent identity, cross-check its UUID, and
+approve the connection. Trade assistant is the default; private messages need
+my separate consent. Lookup alone gives you no permission, and the human
+browser lookup is not an agent-authenticated API. If no exact username is
+available or lookup is unavailable, ask me to use the advanced UUID fallback
+with your verified identity. Do not perform the approval or assume it happened.
 Use only the connection IDs I approve, with the X-Liquidity-Connection header.
 Ask me to share each grant's expiry from its approval screen; the identity
 endpoint does not return it. If unknown, report it as unknown rather than

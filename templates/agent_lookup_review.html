@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="no-referrer">
+    <title>Review agent access | Liquidity.spot</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; background: #0a281b; color: #f4fbf7; font: 16px/1.6 system-ui, sans-serif; }
+        main { max-width: 780px; margin: 6vh auto; padding: 28px; }
+        section { padding: 28px; border: 1px solid #3d8260; border-radius: 18px; background: #103524; }
+        h1 { margin: 8px 0 14px; line-height: 1.2; font-size: 30px; }
+        h2 { margin: 0; font-size: 23px; overflow-wrap: anywhere; }
+        p { color: #d2e2d8; }
+        .eyebrow { color: #6ee2a6; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; }
+        .account { margin-top: 22px; padding: 20px; border: 1px solid #3d8260; border-radius: 12px; background: #071c12; }
+        .account p { margin: 5px 0 0; }
+        .badge { display: inline-block; margin-bottom: 10px; border: 1px solid #3d8260; border-radius: 20px; padding: 2px 10px; color: #6ee2a6; font-size: 13px; font-weight: 700; }
+        details { margin-top: 16px; font-size: 14px; }
+        summary { color: #d2e2d8; cursor: pointer; }
+        code, dd { overflow-wrap: anywhere; }
+        dl { margin: 22px 0; }
+        dt { margin-top: 12px; color: #d2e2d8; font-size: 14px; }
+        dd { margin: 3px 0 0; }
+        .warning { background: #453719; border: 1px solid #866b2c; border-radius: 8px; padding: 14px; }
+        .consent { display: flex; align-items: flex-start; gap: 12px; margin: 20px 0; padding: 16px; border: 1px solid #72af8b; border-radius: 8px; cursor: pointer; }
+        input[type=checkbox] { flex-shrink: 0; width: 18px; height: 18px; margin-top: 4px; accent-color: #29b973; }
+        .actions { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; }
+        button { padding: 12px 18px; border: 0; border-radius: 8px; background: #29b973; color: #071c12; font: inherit; font-weight: 700; cursor: pointer; }
+        button:hover { background: #f4fbf7; }
+        a { color: #6ee2a6; text-underline-offset: 4px; }
+        a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+        .small { font-size: 14px; }
+        @media (max-width: 480px) { main { margin: 18px auto; padding: 14px; } section { padding: 20px; } h1 { font-size: 26px; } .actions { align-items: stretch; flex-direction: column; } .actions a { text-align: center; } }
+    </style>
+</head>
+<body>
+<main>
+    <section aria-labelledby="review-title">
+        <p class="eyebrow">Step 2 · Your approval is required</p>
+        <h1 id="review-title">Is this your agent?</h1>
+        <p>Review the exact account and permissions below. Looking up a username has not granted access or started a bot.</p>
+
+        <div class="account">
+            <span class="badge">AI agent · {{ matched_account.accountKind }}</span>
+            <h2>{{ matched_account.username }}</h2>
+            <p class="small">Exact username returned by GFAVIP Wallet</p>
+            <details>
+                <summary>Show the permanent Wallet UUID</summary>
+                <p><code>{{ matched_account.id }}</code></p>
+            </details>
+        </div>
+
+        <dl>
+            <dt>Account granting access</dt>
+            <dd>{{ owner_name }} — your currently signed-in Liquidity.spot account</dd>
+            <dt>Connection name</dt><dd>{{ label }}</dd>
+            <dt>Permission profile</dt><dd><strong>{{ profiles[profile].label }}</strong></dd>
+            <dt>Permissions</dt><dd><code>{{ profiles[profile].scopes | join(' ') }}{% if include_messages %} trade_messages:read{% endif %}</code></dd>
+            <dt>Private room messages</dt><dd>{{ 'Allowed — this agent can read text in your P2P rooms.' if include_messages else 'Not allowed — private message text is excluded.' }}</dd>
+            <dt>Access duration</dt><dd>{{ grant_days }} days from approval, unless you revoke it sooner.</dd>
+        </dl>
+        {% if profile == 'trade-assistant' %}
+        <p class="warning"><strong>Read-only trade assistance.</strong> This grants access to your P2P event metadata and agreed trade terms{% if include_messages %}, plus the private messages you selected{% endif %}. It does not allow quote drafting, posting replies, publishing or accepting offers, changing trade status, confirming payments, moving funds or accessing wallet keys.</p>
+        {% else %}
+        <p class="warning"><strong>Private offer drafts only.</strong> This grants permission to prepare and read proposed quotes for your review. It does not grant access to trade rooms or messages, publish or accept offers, confirm payments, move funds or access wallet keys.</p>
+        {% endif %}
+        <p class="small">The connection name is only a label. This approval applies only to your signed-in account, not another person named in the label. Confirm the exact username with your agent if you are unsure.</p>
+
+        <form method="POST" action="{{ url_for('agents.create_connection') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="auth_mode" value="gfavip-sso">
+            <input type="hidden" name="identity_mode" value="username">
+            <input type="hidden" name="lookup_proof" value="{{ lookup_proof }}">
+            <label for="confirm-agent" class="consent"><input id="confirm-agent" name="confirm_agent" type="checkbox" value="yes" required><span>I recognize <strong>{{ matched_account.username }}</strong> and approve exactly the access shown above for my signed-in account.</span></label>
+            <div class="actions">
+                <button type="submit">Approve agent access</button>
+                <a href="{{ url_for('agents.workspace') }}">Back — change or cancel</a>
+            </div>
+        </form>
+        <p class="small">This review is valid for {{ review_minutes }} minutes. You can revoke access in the Agent workspace. The connection’s exact expiry is shown after approval. This does not install a model, schedule polling or verify any payment.</p>
+    </section>
+</main>
+</body>
+</html>

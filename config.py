@@ -21,6 +21,7 @@ class Config:
     GFAVIP_SERVICE_NAME = os.environ.get('GFAVIP_SERVICE_NAME', 'liquidity-spot')
     REDIRECT_URI = os.environ.get('REDIRECT_URI', 'http://localhost:8000/callback')
     GFAVIP_WALLET_API_KEY = os.environ.get('GFAVIP_WALLET_API_KEY')
+    GFAVIP_WALLET_LOOKUP_API_KEY = os.environ.get('GFAVIP_WALLET_LOOKUP_API_KEY')
     GFAVIP_WALLET_BASE_URL = os.environ.get('GFAVIP_WALLET_BASE_URL', 'https://wallet.gfavip.com')
     BTC_WATCHER_BASE_URL = os.environ.get('BTC_WATCHER_BASE_URL', 'https://blockstream.info/api')
     HNS_WATCHER_BASE_URL = os.environ.get('HNS_WATCHER_BASE_URL')
@@ -38,6 +39,7 @@ class TestingConfig(Config):
     SECRET_KEY = 'test-only-secret'
     SQLALCHEMY_DATABASE_URI = 'sqlite://'
     GFAVIP_WALLET_API_KEY = None
+    GFAVIP_WALLET_LOOKUP_API_KEY = None
     BTC_WATCHER_BASE_URL = None
     HNS_WATCHER_BASE_URL = None
     ATOMIC_SWAP_NETWORK = 'regtest'
