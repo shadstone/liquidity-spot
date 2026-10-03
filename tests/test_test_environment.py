@@ -7,6 +7,17 @@ from services.http_client import ExternalHTTPDisabled, get as http_get
 
 
 class TestEnvironmentTests(unittest.TestCase):
+    def test_postgres_uses_installed_driver_without_connecting(self):
+        from config import normalize_database_uri
+        from sqlalchemy import create_engine
+        for prefix in ('postgres://', 'postgresql://', 'postgresql+psycopg2://'):
+            uri = normalize_database_uri(prefix + 'user:pass@localhost/example')
+            self.assertEqual(uri, 'postgresql+psycopg2://user:pass@localhost/example')
+            engine = create_engine(uri)
+            self.assertEqual(engine.dialect.driver, 'psycopg2')
+            engine.dispose()
+        self.assertEqual(normalize_database_uri('sqlite://'), 'sqlite://')
+
     def test_testing_config_uses_memory_database_and_no_external_credentials(self):
         app = create_app('testing')
 
