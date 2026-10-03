@@ -3,12 +3,14 @@
 
 Linux/macOS, Python 3.10+, standard library only. Fetch retains a private pending
 batch until the caller explicitly acknowledges it after successful handling.
-Credentials come only from LIQUIDITY_AGENT_TOKEN, never command-line arguments.
+Credentials come only from LIQUIDITY_GFAVIP_SSO_TOKEN (with an approved
+LIQUIDITY_AGENT_CONNECTION_ID) or legacy LIQUIDITY_AGENT_TOKEN, never arguments.
 """
 import argparse
 from contextlib import contextmanager
 import json
 import os
+import re
 from pathlib import Path
 import sys
 import tempfile
@@ -19,6 +21,10 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 class PollError(Exception):
     pass
+
+
+SSO_TOKEN_PATTERN = re.compile(r'gfavip-session-[A-Za-z0-9_-]{16,200}')
+LEGACY_TOKEN_PATTERN = re.compile(r'ls_agent_[A-Za-z0-9_-]{43}')
 
 
 class NoRedirects(HTTPRedirectHandler):
@@ -42,11 +48,20 @@ def validate_base_url(value):
     return value.rstrip('/')
 
 
-def fetch_events(base_url, token, after):
-    if not token or '\n' in token or '\r' in token:
-        raise PollError('Set LIQUIDITY_AGENT_TOKEN privately to a trade-assistant credential.')
+def fetch_events(base_url, token, after, connection_id=None):
+    if (not isinstance(token, str)
+            or not (SSO_TOKEN_PATTERN.fullmatch(token) or LEGACY_TOKEN_PATTERN.fullmatch(token))):
+        raise PollError('Configure a private GFAVIP SSO token and approved connection, or a legacy trade-assistant credential.')
+    headers = {'Authorization': 'Bearer ' + token, 'Accept': 'application/json'}
+    if token.startswith('gfavip-session-'):
+        if (not isinstance(connection_id, str) or not re.fullmatch(r'[1-9][0-9]{0,9}', connection_id)
+                or int(connection_id) > 2147483647):
+            raise PollError('Set LIQUIDITY_AGENT_CONNECTION_ID to the owner-approved SSO connection ID.')
+        headers['X-Liquidity-Connection'] = connection_id
+    elif connection_id is not None:
+        raise PollError('Use a GFAVIP SSO token with a connection ID, or a legacy token without one.')
     request = Request(base_url + '/api/agent/v1/events?' + urlencode({'after': after, 'limit': 50}),
-                      headers={'Authorization': 'Bearer ' + token, 'Accept': 'application/json'})
+                      headers=headers)
     try:
         with build_opener(NoRedirects()).open(request, timeout=20) as response:
             data = response.read(1024 * 1024 + 1)
@@ -142,11 +157,11 @@ def write_state(path, state):
             os.unlink(temporary)
 
 
-def fetch_step(path, base_url, token):
+def fetch_step(path, base_url, token, connection_id=None):
     with locked_state(path):
         state = read_state(path, base_url)
         # Authenticate on every fetch, including when replaying a saved batch.
-        batch = fetch_events(base_url, token, state['cursor'])
+        batch = fetch_events(base_url, token, state['cursor'], connection_id)
         if state['stream_id'] not in (None, batch['stream_id']):
             raise PollError('This state file belongs to another owner. Use a separate file; cursor unchanged.')
         state['stream_id'] = batch['stream_id']
@@ -182,7 +197,16 @@ def main():
         if args.action == 'fetch':
             if args.cursor is not None:
                 raise PollError('Fetch resumes the saved cursor; --cursor is only for ack.')
-            result = fetch_step(args.state.expanduser().absolute(), base_url, os.environ.get('LIQUIDITY_AGENT_TOKEN', ''))
+            sso_token = os.environ.get('LIQUIDITY_GFAVIP_SSO_TOKEN', '')
+            legacy_token = os.environ.get('LIQUIDITY_AGENT_TOKEN', '')
+            if sso_token and legacy_token:
+                raise PollError('Configure only one authentication mode for this routine.')
+            if sso_token and not SSO_TOKEN_PATTERN.fullmatch(sso_token):
+                raise PollError('LIQUIDITY_GFAVIP_SSO_TOKEN requires a GFAVIP SSO session credential.')
+            if legacy_token and not LEGACY_TOKEN_PATTERN.fullmatch(legacy_token):
+                raise PollError('LIQUIDITY_AGENT_TOKEN requires a legacy Liquidity scoped credential.')
+            result = fetch_step(args.state.expanduser().absolute(), base_url, sso_token or legacy_token,
+                                os.environ.get('LIQUIDITY_AGENT_CONNECTION_ID') or None)
         else:
             if not valid_cursor(args.cursor):
                 raise PollError('Ack requires a nonnegative --cursor from a successfully handled batch.')

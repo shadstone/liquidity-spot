@@ -8,6 +8,7 @@ import secrets
 from sqlalchemy import update
 from models import db, User
 from services.payment_assets import get_payment_asset, parse_offer_amounts, format_decimal
+from services.agent_sso import AgentSSOGrant, authenticate_sso_connection
 
 
 SCOPE = 'drafts:read drafts:write'
@@ -57,6 +58,10 @@ class AgentConnection(db.Model):
     @property
     def profile_id(self):
         return 'offer-drafts' if set(self.scope_list) == set(PROFILES['offer-drafts']['scopes']) else 'trade-assistant'
+
+    @property
+    def authentication_method(self):
+        return 'gfavip-sso' if self.sso_grant is not None else 'scoped-token'
 
 
 class AgentDraft(db.Model):
@@ -144,13 +149,22 @@ def require_scopes(connection, required_scopes):
         raise WorkspaceError('This credential does not grant the required permission.', 403)
 
 
-def authenticate_bearer(header, required_scopes=None):
-    if not isinstance(header, str) or len(header) > 100:
+def authenticate_bearer(header, required_scopes=None, connection_id=None):
+    if not isinstance(header, str) or len(header) > 250:
         raise WorkspaceError('A valid scoped agent Bearer credential is required.', 401)
     parts = header.split(' ')
-    if len(parts) != 2 or parts[0].lower() != 'bearer' or not TOKEN_PATTERN.fullmatch(parts[1]):
+    if len(parts) != 2 or parts[0].lower() != 'bearer':
         raise WorkspaceError('A valid scoped agent Bearer credential is required.', 401)
-    connection = AgentConnection.query.filter_by(token_hash=digest_token(parts[1])).first()
+    if parts[1].startswith('gfavip-session-'):
+        connection = authenticate_sso_connection(parts[1], connection_id)
+    else:
+        if len(header) > 100 or not TOKEN_PATTERN.fullmatch(parts[1]):
+            raise WorkspaceError('A valid scoped agent Bearer credential is required.', 401)
+        connection = AgentConnection.query.filter_by(token_hash=digest_token(parts[1])).first()
+        # SSO grants deliberately discard the generated legacy secret. Even if
+        # it were accidentally retained, it must not bypass Wallet verification.
+        if connection and connection.sso_grant is not None:
+            raise WorkspaceError('A valid scoped agent Bearer credential is required.', 401)
     if not connection or not connection.is_active or frozenset(connection.scope_list) not in VALID_SCOPE_SETS:
         raise WorkspaceError('A valid scoped agent Bearer credential is required.', 401)
     require_scopes(connection, required_scopes)

@@ -1,6 +1,5 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app, Response, jsonify
 from models import db, User, Order, Swap, SwapMessage, P2POffer, P2PTrade, P2PTradeMessage, P2PTradeParticipantState, P2PTradeFeedback
-import os
 from routes.auth import attach_guest_recovery_token, login_required
 import secrets
 import hashlib
@@ -1069,15 +1068,6 @@ def _build_p2p_trade_receipt_pdf(trade, requested_by=None):
 
     start_page()
     return _build_pdf_document(f'Liquidity.spot Trade #{trade.id} Receipt', pages)
-
-@main_bp.route('/skill.md')
-def skill_md():
-    skill_path = os.path.join(current_app.root_path, 'skill.md')
-    if os.path.exists(skill_path):
-        with open(skill_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-        return Response(content, mimetype='text/plain')
-    return Response("skill.md not found", status=404, mimetype='text/plain')
 
 @main_bp.route('/bob-addon.json')
 def bob_addon_manifest():

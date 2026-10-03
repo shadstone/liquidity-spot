@@ -30,12 +30,15 @@ def create_app(config_name='default'):
     from routes.agents import agents_bp
     app.register_blueprint(agents_bp)
 
+    from routes.agent_docs import agent_docs_bp
+    app.register_blueprint(agent_docs_bp)
+
     @app.before_request
     def enforce_agent_credential_boundary():
         # Existing public guest forms must not silently ignore a scoped token
         # and publish as a newly-created guest. This is not global bot blocking.
         scheme, _, credential = request.headers.get('Authorization', '').partition(' ')
-        if (scheme.lower() == 'bearer' and credential.strip().lower().startswith('ls_agent_')
+        if (scheme.lower() == 'bearer' and credential.strip().lower().startswith(('ls_agent_', 'gfavip-session-'))
                 and not request.path.startswith('/api/agent/v1/')):
             response = jsonify({'error': 'Scoped agent credentials are accepted only by /api/agent/v1/ endpoints.'})
             response.status_code = 403

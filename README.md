@@ -161,9 +161,24 @@ For now, users should treat all trades as manual P2P coordination and verify eve
 
 ## Agent Workspace: Human-controlled Pilot
 
-As of 2026-10-03, this pilot is development/PR-review work, not a claim of
-production availability. It uses the existing P2P board and rooms; there is
-no separate agent orderbook, pooled money or invented liquidity.
+This human-controlled pilot uses the existing P2P board and rooms; there is
+no separate agent orderbook, pooled money or invented liquidity. Check the live
+capability endpoint for deployed availability.
+
+Public documentation: [skill](https://liquidity.spot/skill.md),
+[API reference](https://liquidity.spot/skill_api.md), and
+[bot routine prompt](https://liquidity.spot/skill_prompt.md). Every Markdown skill
+route explicitly serves `text/plain; charset=utf-8` with inline disposition.
+`/api/docs` redirects to the API reference.
+
+New agents use **PowerLobster → GFAVIP SSO** as described in the public skill.
+They call `GET /api/agent/v1/me` with the SSO token to obtain their verified agent
+Wallet UUID. The human owner selects GFAVIP SSO in `/agents`, approves that exact
+UUID and chooses a profile. The agent sends its SSO token in `Authorization`
+and the approved ID in `X-Liquidity-Connection`. Identity is validated with
+Wallet on every request; the owner binding, expiry and scopes are checked
+locally. An agent's Wallet identity does not automatically inherit human access.
+No browser session, trading permission or local user is created by `/me`.
 
 The signed-in **Agent workspace** at `/agents` issues credentials for an
 owner's own agent/runtime. Choose one permission profile:
@@ -179,7 +194,7 @@ The form field is `profile`; private text requires an explicit
 credentials never widen automatically. To change permissions, revoke the old
 connection and create a new one. Every connection's actual scopes are visible.
 
-Tokens expire after seven days and appear once on a standalone page without
+Connections expire after seven days. Legacy scoped tokens appear once on a standalone page without
 external scripts. Store the token privately; never put it in URLs, model
 prompts, logs, screenshots or source control. The server stores only a digest.
 Use `Authorization: Bearer <token>` for private API requests and HTTPS for
@@ -227,9 +242,11 @@ only when new activity needs attention. Empty polls need no model call. Actual
 intervals and wake-up support depend on the owner's runtime; no specific chat
 product is assumed to accept incoming webhooks.
 
-The helper uses Python's standard library on Linux/macOS. After bootstrapping
-rooms, set `LIQUIDITY_AGENT_TOKEN` privately to a newly consented trade-assistant
-token and choose a private state-file path:
+The helper uses Python 3.10+ and its standard library on Linux/macOS. After
+bootstrapping rooms, configure `LIQUIDITY_GFAVIP_SSO_TOKEN` privately and set
+`LIQUIDITY_AGENT_CONNECTION_ID` to the approved Trade assistant connection ID.
+For an existing legacy connection, use `LIQUIDITY_AGENT_TOKEN` instead (do not
+set both modes). Choose a private state-file path:
 
 ```bash
 python3 scripts/poll_trade_events.py fetch --state /path/to/private/events.json
@@ -250,8 +267,9 @@ authenticates, including a pending replay. Keep the state file private and
 reuse it for the same connection/owner routine; do not share it between owners.
 The default base URL is `https://liquidity.spot`; use `--base-url` for a local
 development server (loopback HTTP is supported). The server API must first be
-deployed, and the explicitly consented token created; examples do not mean the
-pilot is already live. No schedule is created by the helper or this setup.
+deployed, and the owner-approved connection created. No schedule is created
+by the helper or this setup. Refresh SSO through Wallet when necessary; grant
+renewal still requires the owner's approval.
 
 Suggested routine brief (no credential belongs in this text):
 
@@ -280,7 +298,8 @@ reuse the same key/payload only for a retry. Owners may have five active
 connections, 50 pending drafts and 100 new drafts per hour across connections;
 reads and identical replays do not consume the draft-creation quota.
 
-With an offer-drafts token privately set as `LIQUIDITY_AGENT_TOKEN`:
+Legacy scoped-token example, with an offer-drafts token privately set as
+`LIQUIDITY_AGENT_TOKEN` (new SSO clients should follow the public API reference):
 
 ```bash
 curl --request POST 'http://localhost:8000/api/agent/v1/drafts' \

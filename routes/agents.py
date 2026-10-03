@@ -18,6 +18,7 @@ from services.agent_workspace import (
 )
 from services.payment_assets import PAYMENT_ASSETS, format_decimal
 from services.trade_events import AgentTradeEvent, SAFE_STATUSES, SAFE_MILESTONES, serialize_event
+from services.agent_sso import AgentSSOGrant, create_sso_grant, validate_agent_identity
 
 
 agents_bp = Blueprint('agents', __name__)
@@ -97,7 +98,11 @@ def workspace_context(owner):
     pending = AgentDraft.query.filter_by(owner_id=owner.id, status='pending').order_by(AgentDraft.created_at.desc()).limit(LIMITS['pending']).all()
     history = AgentDraft.query.filter_by(owner_id=owner.id, status='dismissed').order_by(AgentDraft.dismissed_at.desc()).limit(20).all()
     return dict(connections=connections, drafts=pending + history, csrf_token=csrf_token(),
-                limits=LIMITS, profiles=PROFILES, issued_token=None, issued_connection=None)
+                limits=LIMITS, profiles=PROFILES, issued_token=None, issued_connection=None,
+                issued_sso_grant=None,
+                grants_by_connection={grant.connection_id: grant for grant in AgentSSOGrant.query.join(
+                    AgentConnection, AgentConnection.id == AgentSSOGrant.connection_id
+                ).filter(AgentConnection.owner_id == owner.id).all()})
 
 
 @agents_bp.route('/agents')
@@ -115,13 +120,23 @@ def create_connection():
     message_choice = request.form.get('include_messages', '')
     if message_choice not in ('', 'yes'):
         raise WorkspaceError('Message access requires the explicit consent checkbox.')
-    connection, raw_token = issue_connection(owner.id, request.form.get('label', ''),
-                                              profile=profile, include_messages=message_choice == 'yes')
+    auth_mode = request.form.get('auth_mode', 'scoped-token')
+    raw_token = None
+    if auth_mode == 'gfavip-sso':
+        connection = create_sso_grant(owner.id, request.form.get('label', ''),
+            request.form.get('agent_gfavip_user_id', ''), profile=profile,
+            include_messages=message_choice == 'yes')
+    elif auth_mode == 'scoped-token':
+        connection, raw_token = issue_connection(owner.id, request.form.get('label', ''),
+                                                  profile=profile, include_messages=message_choice == 'yes')
+    else:
+        raise WorkspaceError('Choose GFAVIP SSO or the legacy scoped-token connection.')
     db.session.commit()
     # One-time response only: no token in a URL, flash, server session, or cookie.
     session['agent_workspace_csrf'] = secrets.token_urlsafe(32)
     context = workspace_context(owner)
-    context.update(issued_token=raw_token, issued_connection=connection)
+    context.update(issued_token=raw_token, issued_connection=connection,
+                   issued_sso_grant=connection.sso_grant if auth_mode == 'gfavip-sso' else None)
     response = make_response(render_template('agent_workspace.html', **context))
     # The issued-token branch is standalone: no external scripts can read it.
     response.headers['Content-Security-Policy'] = "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
@@ -165,6 +180,14 @@ def capabilities():
     return jsonify({
         'version': 1, 'mode': 'human-controlled', 'draft_mode': 'draft-only', 'scope': SCOPE,
         'profiles': PROFILES, 'default_profile': 'offer-drafts',
+        'documentation': {'skill': '/skill.md', 'api': '/skill_api.md', 'routine_prompt': '/skill_prompt.md'},
+        'authentication': {
+            'preferred': 'gfavip-sso', 'identity_url': '/api/agent/v1/me',
+            'provider_guide': 'https://wallet.gfavip.com/skill.md',
+            'grant': 'The owner must approve the verified agent GFAVIP user ID in /agents.',
+            'headers': {'Authorization': 'Bearer <GFAVIP SSO token>', 'X-Liquidity-Connection': '<owner-approved connection ID>'},
+            'legacy_scoped_tokens': True,
+        },
         'polling': {'recommended_interval_seconds': 60, 'push': False,
                     'events_url': '/api/agent/v1/events',
                     'bootstrap_url': '/api/agent/v1/trades',
@@ -188,6 +211,23 @@ def capabilities():
     })
 
 
+@agents_bp.route('/api/agent/v1/me', methods=['GET'])
+def api_agent_identity():
+    if request.args:
+        raise WorkspaceError('This endpoint does not accept query parameters.')
+    header = request.headers.get('Authorization', '')
+    parts = header.split(' ')
+    if len(parts) != 2 or parts[0].lower() != 'bearer':
+        raise WorkspaceError('A valid GFAVIP SSO Bearer token is required.', 401)
+    # Verified identity only: no browser session, local user or grant is created.
+    return jsonify(validate_agent_identity(parts[1]))
+
+
+def api_connection(scopes):
+    return authenticate_bearer(request.headers.get('Authorization'), scopes,
+                               connection_id=request.headers.get('X-Liquidity-Connection'))
+
+
 def strict_json_body():
     if not request.is_json:
         raise WorkspaceError('Use Content-Type: application/json.', 415)
@@ -207,8 +247,7 @@ def strict_json_body():
 @agents_bp.route('/api/agent/v1/drafts', methods=['GET', 'POST'])
 def api_drafts():
     # Deliberately never uses login_required or the browser session for API auth.
-    connection = authenticate_bearer(request.headers.get('Authorization'),
-                                     ['drafts:write' if request.method == 'POST' else 'drafts:read'])
+    connection = api_connection(['drafts:write' if request.method == 'POST' else 'drafts:read'])
     if request.method == 'POST':
         draft, created = create_draft(connection, request.headers.get('Idempotency-Key'), strict_json_body())
         db.session.commit()
@@ -318,7 +357,7 @@ def finish_read(connection, payload):
 
 @agents_bp.route('/api/agent/v1/events', methods=['GET'])
 def api_events():
-    connection = authenticate_bearer(request.headers.get('Authorization'), ['events:read'])
+    connection = api_connection(['events:read'])
     after, limit = read_pagination()
     # Recheck participation too, so an obsolete journal row never exposes a removed room.
     rows = AgentTradeEvent.query.join(P2PTrade, P2PTrade.id == AgentTradeEvent.trade_id).filter(
@@ -334,7 +373,7 @@ def api_events():
 
 @agents_bp.route('/api/agent/v1/trades', methods=['GET'])
 def api_trades():
-    connection = authenticate_bearer(request.headers.get('Authorization'), ['trades:read'])
+    connection = api_connection(['trades:read'])
     after, limit = read_pagination()
     rows = P2PTrade.query.filter(P2PTrade.id > after,
         (P2PTrade.creator_id == connection.owner_id) | (P2PTrade.counterparty_id == connection.owner_id),
@@ -347,7 +386,7 @@ def api_trades():
 
 @agents_bp.route('/api/agent/v1/trades/<int:trade_id>', methods=['GET'])
 def api_trade(trade_id):
-    connection = authenticate_bearer(request.headers.get('Authorization'), ['trades:read'])
+    connection = api_connection(['trades:read'])
     after, limit = read_pagination(extra_fields=('include_messages',))
     include_messages = request.args.get('include_messages', 'no')
     if include_messages not in ('yes', 'no'):
@@ -362,7 +401,7 @@ def api_trade(trade_id):
 
 @agents_bp.route('/api/agent/v1/trades/<int:trade_id>/messages', methods=['GET'])
 def api_trade_messages(trade_id):
-    connection = authenticate_bearer(request.headers.get('Authorization'), ['trades:read', 'trade_messages:read'])
+    connection = api_connection(['trades:read', 'trade_messages:read'])
     after, limit = read_pagination()
     trade = participant_trade(connection, trade_id)
     return finish_read(connection, {'trade_id': trade.id, **message_read_page(trade, connection.owner_id, after, limit)})
