@@ -22,6 +22,9 @@ class Config:
     REDIRECT_URI = os.environ.get('REDIRECT_URI', 'http://localhost:8000/callback')
     GFAVIP_WALLET_API_KEY = os.environ.get('GFAVIP_WALLET_API_KEY')
     GFAVIP_WALLET_LOOKUP_API_KEY = os.environ.get('GFAVIP_WALLET_LOOKUP_API_KEY')
+    # Operational kill switch. An owner must separately approve a bounded SSO
+    # grant before a maker can publish offers or send room replies.
+    AGENT_MAKER_ENABLED = os.environ.get('AGENT_MAKER_ENABLED', '').lower() == 'true'
     GFAVIP_WALLET_BASE_URL = os.environ.get('GFAVIP_WALLET_BASE_URL', 'https://wallet.gfavip.com')
     BTC_WATCHER_BASE_URL = os.environ.get('BTC_WATCHER_BASE_URL', 'https://blockstream.info/api')
     HNS_WATCHER_BASE_URL = os.environ.get('HNS_WATCHER_BASE_URL')
@@ -40,6 +43,7 @@ class TestingConfig(Config):
     SQLALCHEMY_DATABASE_URI = 'sqlite://'
     GFAVIP_WALLET_API_KEY = None
     GFAVIP_WALLET_LOOKUP_API_KEY = None
+    AGENT_MAKER_ENABLED = False
     BTC_WATCHER_BASE_URL = None
     HNS_WATCHER_BASE_URL = None
     ATOMIC_SWAP_NETWORK = 'regtest'

@@ -25,6 +25,7 @@ class TestEnvironmentTests(unittest.TestCase):
         self.assertEqual(app.config['SQLALCHEMY_DATABASE_URI'], 'sqlite://')
         self.assertIsNone(app.config['GFAVIP_WALLET_API_KEY'])
         self.assertIsNone(app.config['GFAVIP_WALLET_LOOKUP_API_KEY'])
+        self.assertFalse(app.config['AGENT_MAKER_ENABLED'])
         self.assertIsNone(app.config['BTC_WATCHER_BASE_URL'])
         self.assertIsNone(app.config['HNS_WATCHER_BASE_URL'])
         self.assertEqual(app.config['ATOMIC_SWAP_NETWORK'], 'regtest')

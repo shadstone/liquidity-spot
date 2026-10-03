@@ -28,5 +28,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Check agent guide copy and dismissal behavior
-        run: node --test tests/test_agent_guide_js.cjs
+      - name: Check agent guide and workspace behavior
+        run: node --test tests/*.cjs

@@ -82,7 +82,7 @@ class AgentLookupFlowTests(unittest.TestCase):
         html = response.get_data(as_text=True)
         self.assertIn(ACCOUNT['username'], html)
         self.assertIn(AGENT, html)
-        self.assertIn('Trade assistant', html)
+        self.assertIn('Watch trades (read-only)', html)
         self.assertIn('7 days from approval', html)
         self.assertIn('valid for 5 minutes', html)
         self.assertNotIn('<script', html.lower())
