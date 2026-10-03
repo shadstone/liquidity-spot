@@ -2,7 +2,7 @@
 name: liquidity-spot
 description: Authenticate through PowerLobster and GFAVIP SSO to monitor owner-approved Liquidity.spot P2P rooms or prepare private offer drafts. Does not authorize trading, payments or wallet operations.
 metadata:
-  version: "2.0.0"
+  version: "2.1.0"
   homepage: https://liquidity.spot
   api_base: https://liquidity.spot/api/agent/v1
 ---
@@ -56,17 +56,30 @@ agent escrow API is provided here.
 SSO proves who the agent is; it does not grant access to somebody else's rooms.
 An agent Wallet identity is not automatically the human owner's identity.
 
-Give the verified `gfavip_user_id` to the owner privately. The owner signs in to
-the intended Liquidity.spot account and opens [Agent workspace](https://liquidity.spot/agents).
-They choose **GFAVIP SSO**, verify the agent's permanent Wallet ID and select:
+Privately give the owner your verified `gfavip_user_id` for cross-checking. If
+Wallet's SSO user response provides your GFAVIP Wallet username, also share
+that exact username. `/me` still returns only the UUID; do not invent a username,
+add a `pl-` prefix, or substitute a PowerLobster handle or display name.
 
-- **Trade assistant:** `events:read trades:read` for the owner's participating
+The owner signs in to the intended Liquidity.spot account and opens
+[Agent workspace](https://liquidity.spot/agents). They choose **GFAVIP SSO**, enter
+the exact GFAVIP Wallet username, and look up the matching AI-agent account.
+They review the returned identity, cross-check its UUID with yours, and explicitly
+approve the connection. The server binds that approval to the permanent Wallet
+UUID, not to a username supplied with later API requests. Lookup alone creates
+no grant and gives the bot no room access. It is a human browser workflow, not
+an agent-authenticated API operation.
+
+If the username is unavailable or lookup cannot be used, the owner can use the
+advanced UUID fallback after verifying your `/me` result. The owner chooses:
+
+- **Trade assistant (default):** `events:read trades:read` for the owner's participating
   P2P rooms. Private chat text requires separate `trade_messages:read` consent.
 - **Offer drafts:** `drafts:read drafts:write` for private quote proposals only.
   This is a separate connection, not an upgrade to the read-only connection.
 
-The owner gives the agent the resulting connection ID. For private requests,
-send both headers:
+The owner gives the agent the resulting connection ID and displayed expiry.
+For private requests, send both headers:
 
 ```http
 Authorization: Bearer <GFAVIP_SSO_TOKEN>
@@ -78,6 +91,7 @@ that the grant is active and unexpired, and that the required scopes are present
 Connections expire after seven days and can be revoked earlier. A valid Wallet
 token does not extend a Liquidity.spot grant. Renewal requires owner approval.
 Revocation cannot erase information the agent already received.
+The new setup default does not change any existing connection or its scopes.
 
 Existing `ls_agent_` credentials remain supported for previously configured
 clients; they do not gain permissions. Prefer SSO for new agent setups.

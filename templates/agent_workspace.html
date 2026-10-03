@@ -41,12 +41,13 @@
         <p>No Liquidity.spot token is issued or needs to be copied. Your agent uses its own GFAVIP SSO identity, not your browser session or wallet keys.</p>
         <dl>
             <dt>Connection</dt><dd>#{{ issued_connection.id }} · {{ issued_connection.label }}</dd>
+            {% if issued_matched_account %}<dt>Approved agent username</dt><dd>{{ issued_matched_account.username }} · AI agent</dd>{% endif %}
             <dt>Approved agent Wallet UUID</dt><dd><code>{{ issued_sso_grant.agent_gfavip_user_id }}</code></dd>
             <dt>Permission profile</dt><dd>{{ profiles[issued_connection.profile_id].label }}</dd>
             <dt>Permissions</dt><dd><code>{{ issued_connection.scope }}</code></dd>
             <dt>Expires</dt><dd>{{ issued_connection.expires_at.strftime('%Y-%m-%d %H:%M') }} UTC</dd>
         </dl>
-        <p>The UUID above is the identity you supplied. Each API request must verify the agent’s own SSO identity with GFAVIP Wallet and match this grant. Double-check it against the agent’s <code>GET /api/agent/v1/me</code> result, shared privately—not a username or your own account ID.</p>
+        <p>The UUID above is the identity you approved. Each API request must verify the agent’s own SSO identity with GFAVIP Wallet and match this grant. You can double-check it against the agent’s <code>GET /api/agent/v1/me</code> result, shared privately—not your own account ID.</p>
         <p>Give your agent connection ID <strong>{{ issued_connection.id }}</strong>. Private API requests need its own <code>Authorization: Bearer</code> credential and <code>X-Liquidity-Connection: {{ issued_connection.id }}</code>. The connection ID alone grants no access.</p>
         {% else %}
         <p class="eyebrow">Save once · Keep private</p>
@@ -68,7 +69,17 @@
     </section>
 </main>
 {% else %}
+{% macro connection_fields(prefix) %}
+    <div class="grid gap-4 md:grid-cols-2">
+        <div><label for="{{ prefix }}-name" class="mb-1 block text-sm font-bold text-white">Connection name</label><input id="{{ prefix }}-name" name="label" type="text" required maxlength="80" placeholder="My trade assistant" class="w-full rounded-lg border border-gfa-grey/30 bg-black/50 p-3 text-white"><p class="mt-1 text-xs text-gfa-grey">A label for your records, not the agent’s identity.</p></div>
+        <div><label for="{{ prefix }}-profile" class="mb-1 block text-sm font-bold text-white">Permission profile</label><select id="{{ prefix }}-profile" name="profile" data-agent-profile class="w-full rounded-lg border border-gfa-grey/30 bg-black/50 p-3 text-white">{% for profile_id, permission_profile in profiles.items() %}<option value="{{ profile_id }}" {{ 'selected' if profile_id == 'trade-assistant' else '' }}>{{ permission_profile.label }}</option>{% endfor %}</select></div>
+    </div>
+    <label for="{{ prefix }}-include-messages" class="flex items-start gap-3 rounded-lg border border-yellow-500/25 bg-yellow-950/20 p-4 text-sm text-yellow-100"><input id="{{ prefix }}-include-messages" type="checkbox" name="include_messages" value="yes" data-agent-messages class="mt-1 h-4 w-4 shrink-0"><span><strong>Also allow private room message text.</strong> Optional, for Trade assistant only. This exposes messages in your own P2P rooms to your agent/runtime. Leave unchecked for terms and event metadata only; leave unchecked when choosing Offer drafts.</span></label>
+{% endmacro %}
 <div class="mx-auto max-w-6xl space-y-6 pb-8">
+    {% if lookup_error %}
+    <div role="alert" class="rounded-xl border border-red-400/40 bg-red-950/30 p-4 text-sm leading-relaxed text-red-100"><p>{{ lookup_error }}</p><p class="mt-2">No access was granted. <a href="#agent-connections" class="font-bold underline underline-offset-4 hover:text-white">Retry the exact username</a> or use the <a href="#agent-advanced" class="font-bold underline underline-offset-4 hover:text-white">advanced verified-UUID option</a>.</p></div>
+    {% endif %}
     <header class="rounded-2xl border border-gfa-light/30 bg-black/35 p-6 md:p-8">
         <div class="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
             <div class="max-w-3xl">
@@ -76,7 +87,10 @@
                 <h1 class="mt-2 text-3xl font-bold text-white md:text-4xl">Let an assistant follow the room. You decide.</h1>
                 <p class="mt-3 text-gfa-grey">Give your own agent read-only access to your P2P trade events and agreed terms, so it can prepare the next steps for you. Private messages need separate consent. Offer drafting remains a separate permission profile on the same P2P board.</p>
             </div>
-            <a href="{{ url_for('main.p2p') }}" class="shrink-0 rounded-lg border border-gfa-light/40 px-4 py-3 text-center text-sm font-bold text-gfa-light hover:bg-gfa-light/10">Open the P2P board ↗</a>
+            <div class="flex shrink-0 flex-col gap-2">
+                <a href="#agent-connections" class="rounded-lg bg-gfa-light px-4 py-3 text-center text-sm font-bold text-gfa-dark hover:bg-white">Connect an agent ↓</a>
+                <a href="{{ url_for('main.p2p') }}" class="rounded-lg border border-gfa-light/40 px-4 py-3 text-center text-sm font-bold text-gfa-light hover:bg-gfa-light/10">Open the P2P board ↗</a>
+            </div>
         </div>
         <div class="mt-5 rounded-xl border border-yellow-500/30 bg-yellow-950/20 p-4 text-sm leading-relaxed text-yellow-100">
             <strong>You remain in control.</strong> Agents cannot publish or accept offers, post room messages, change trade status, confirm payments or move funds through this API. Payment claims are unverified. Drafts are private suggestions—not liquidity, reserved funds or verified balances. There is no built-in AI model, instant push, automatic settlement or order auto-fill.
@@ -149,37 +163,58 @@
         {% endif %}
     </section>
 
-    <section aria-labelledby="connections-title" class="rounded-2xl border border-gfa-grey/20 bg-black/30 p-5 md:p-7">
+    <section id="agent-connections" aria-labelledby="connections-title" style="scroll-margin-top: var(--liquidity-sticky-offset, 10rem)" class="rounded-2xl border border-gfa-grey/20 bg-black/30 p-5 md:p-7">
         <p class="text-xs font-bold uppercase tracking-wider text-gfa-light">Access you control</p>
         <h2 id="connections-title" class="mt-1 text-2xl font-bold text-white">Agent connections</h2>
-        <p class="mt-2 max-w-3xl text-sm text-gfa-grey">Approve a separate connection for each agent. GFAVIP SSO links the agent’s own identity to only the permissions you choose. It does not share your browser session, guest recovery key or wallet credentials.</p>
-        <form method="POST" action="{{ url_for('agents.create_connection') }}" class="mt-5 space-y-4">
+        <p class="mt-2 max-w-3xl text-sm text-gfa-grey">Start with your agent’s exact GFAVIP username. Review the matched account and selected permissions before approving access. This connects the agent’s own identity to your signed-in account; it does not share your browser session or wallet keys.</p>
+        <div class="mt-4 grid gap-3 text-sm md:grid-cols-2">
+            <p class="rounded-lg border border-gfa-grey/20 bg-black/25 p-3 text-gfa-grey"><strong class="text-white">Trade assistant:</strong> read your event metadata and trade terms. No draft creation or trading actions.</p>
+            <p class="rounded-lg border border-gfa-grey/20 bg-black/25 p-3 text-gfa-grey"><strong class="text-white">Offer drafts:</strong> prepare and read private quote drafts. No trade-room access. Use a separate connection for this profile.</p>
+        </div>
+        {% if lookup_enabled %}
+        <form id="agent-lookup-form" method="POST" action="{{ url_for('agents.lookup_agent') }}" data-agent-access-form class="mt-5 space-y-4">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div>
-                <label for="agent-auth-mode" class="mb-1 block text-sm font-bold text-white">How will your agent sign in?</label>
-                <select id="agent-auth-mode" name="auth_mode" class="w-full rounded-lg border border-gfa-grey/30 bg-black/50 p-3 text-white" aria-describedby="agent-auth-help">
-                    <option value="gfavip-sso" selected>GFAVIP SSO — agent’s own identity (recommended)</option>
-                    <option value="scoped-token">Scoped token — compatibility fallback</option>
-                </select>
-                <p id="agent-auth-help" class="mt-2 text-xs text-gfa-grey">SSO creates a revocable permission grant, not a new Liquidity.spot secret. The fallback issues a private token shown once.</p>
+                <label for="agent-username" class="mb-1 block text-sm font-bold text-white">Agent’s GFAVIP username</label>
+                <input id="agent-username" name="agent_username" type="text" required maxlength="201" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="Your agent’s exact username" aria-describedby="agent-username-help" class="w-full rounded-lg border border-gfa-grey/30 bg-black/50 p-3 text-white">
+                <p id="agent-username-help" class="mt-2 text-sm text-gfa-grey">Use the exact username your agent shares with you, not a display name or your own username. Finding a match does not grant access.</p>
             </div>
-            <div id="agent-sso-fields" class="rounded-xl border border-gfa-light/30 bg-black/25 p-4">
-                <label for="agent-gfavip-user-id" class="mb-1 block text-sm font-bold text-white">Agent’s permanent GFAVIP Wallet user ID (UUID)</label>
-                <input id="agent-gfavip-user-id" name="agent_gfavip_user_id" type="text" required maxlength="36" pattern="[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" aria-describedby="agent-sso-help" class="w-full rounded-lg border border-gfa-grey/30 bg-black/50 p-3 font-mono text-sm text-white">
-                <p id="agent-sso-help" class="mt-2 text-sm leading-relaxed text-gfa-grey">Ask your agent to call <code>GET /api/agent/v1/me</code> with its own GFAVIP SSO bearer credential and share only the returned <code>gfavip_user_id</code> privately. Verify that UUID with the agent before approving. This is the agent’s identity—not your own account ID, a username or a wallet address.</p>
-                <p class="mt-2 text-xs text-yellow-100">Never paste a PowerLobster key, SSO token, recovery key or seed phrase here. <a href="/skill.md" class="font-bold text-gfa-light hover:text-white">Agent setup guide ↗</a></p>
-            </div>
-            <div class="grid gap-4 md:grid-cols-2">
-                <div><label for="agent-name" class="mb-1 block text-sm font-bold text-white">Connection name</label><input id="agent-name" name="label" type="text" required maxlength="80" placeholder="My trade assistant" class="w-full rounded-lg border border-gfa-grey/30 bg-black/50 p-3 text-white"></div>
-                <div><label for="agent-profile" class="mb-1 block text-sm font-bold text-white">Permission profile</label><select id="agent-profile" name="profile" class="w-full rounded-lg border border-gfa-grey/30 bg-black/50 p-3 text-white">{% for profile_id, profile in profiles.items() %}<option value="{{ profile_id }}" {{ 'selected' if profile_id == 'offer-drafts' else '' }}>{{ profile.label }}</option>{% endfor %}</select></div>
-            </div>
-            <div class="grid gap-3 text-sm md:grid-cols-2">
-                <p class="rounded-lg border border-gfa-grey/20 bg-black/25 p-3 text-gfa-grey"><strong class="text-white">Offer drafts:</strong> prepare and read private quote drafts. No trade-room access.</p>
-                <p class="rounded-lg border border-gfa-grey/20 bg-black/25 p-3 text-gfa-grey"><strong class="text-white">Trade assistant:</strong> read your event metadata and trade terms. No draft creation or trading actions.</p>
-            </div>
-            <label class="flex items-start gap-3 rounded-lg border border-yellow-500/25 bg-yellow-950/20 p-4 text-sm text-yellow-100"><input id="agent-include-messages" type="checkbox" name="include_messages" value="yes" class="mt-1 h-4 w-4 shrink-0"><span><strong>Also allow private room message text.</strong> Optional, for Trade assistant only. This exposes messages in your own P2P rooms to your connected agent/runtime. Leave unchecked for terms and event metadata only.</span></label>
-            <button type="submit" class="rounded-lg bg-gfa-blue px-5 py-3 font-bold text-white hover:bg-blue-600">Approve agent connection</button>
+            {{ connection_fields('agent') }}
+            <button type="submit" class="rounded-lg bg-gfa-light px-5 py-3 font-bold text-gfa-dark hover:bg-white">Find agent / review access →</button>
+            <p class="text-xs text-gfa-grey">Next: check the exact username and AI-agent classification. You approve in a separate step.</p>
         </form>
+        {% else %}
+        <div id="agent-lookup-unavailable" class="mt-5 rounded-xl border border-yellow-500/30 bg-yellow-950/20 p-4 text-sm leading-relaxed text-yellow-100">
+            <strong>Username lookup is not available on this site right now.</strong> You can still connect your agent using its verified Wallet UUID under Advanced connection options below. Do not guess an ID or paste a sign-in token.
+        </div>
+        {% endif %}
+        <details id="agent-advanced" style="scroll-margin-top: var(--liquidity-sticky-offset, 10rem)" class="mt-5 rounded-xl border border-gfa-grey/20 bg-black/25 p-4 sm:p-5">
+            <summary class="cursor-pointer font-bold text-white">Advanced connection options: verified UUID or scoped token</summary>
+            <div class="mt-5 space-y-6">
+                <form id="agent-uuid-form" method="POST" action="{{ url_for('agents.create_connection') }}" data-agent-access-form class="space-y-4">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="auth_mode" value="gfavip-sso">
+                    <input type="hidden" name="identity_mode" value="uuid">
+                    <h3 class="text-lg font-bold text-white">Approve a verified Wallet UUID manually</h3>
+                    <div>
+                        <label for="agent-gfavip-user-id" class="mb-1 block text-sm font-bold text-white">Agent’s permanent GFAVIP Wallet user ID (UUID)</label>
+                        <input id="agent-gfavip-user-id" name="agent_gfavip_user_id" type="text" required maxlength="36" pattern="[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" aria-describedby="agent-sso-help" class="w-full rounded-lg border border-gfa-grey/30 bg-black/50 p-3 font-mono text-sm text-white">
+                        <p id="agent-sso-help" class="mt-2 text-sm leading-relaxed text-gfa-grey">Ask your agent to call <code>GET /api/agent/v1/me</code> with its own GFAVIP SSO credential and privately share only <code>gfavip_user_id</code>. Verify that exact UUID with the agent. It is not your own account ID or a wallet address; this manual path does not look up a username.</p>
+                    </div>
+                    {{ connection_fields('manual-agent') }}
+                    <button type="submit" class="rounded-lg border border-gfa-light/40 px-5 py-3 text-sm font-bold text-gfa-light hover:bg-gfa-light/10">Approve this UUID and selected access</button>
+                </form>
+                <form id="agent-token-form" method="POST" action="{{ url_for('agents.create_connection') }}" data-agent-access-form class="space-y-4 border-t border-gfa-grey/20 pt-6">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="auth_mode" value="scoped-token">
+                    <h3 class="text-lg font-bold text-white">Scoped-token compatibility fallback</h3>
+                    <p class="text-sm leading-relaxed text-gfa-grey">For an existing client that cannot use GFAVIP SSO. This creates a private token, shown once, instead of linking an agent identity. Anyone holding it can use its permissions; keep it in your runtime’s private credential store.</p>
+                    {{ connection_fields('token-agent') }}
+                    <button type="submit" class="rounded-lg border border-gfa-grey/30 px-5 py-3 text-sm font-bold text-white hover:bg-white/5">Create a scoped token</button>
+                </form>
+            </div>
+        </details>
+        <p class="mt-3 text-xs text-yellow-100">Never paste a PowerLobster key, SSO token, recovery key or seed phrase into these forms. <a href="/skill.md" class="font-bold text-gfa-light hover:text-white">Agent setup guide ↗</a></p>
         <p class="mt-2 text-xs text-gfa-grey">Up to {{ limits.connections }} active connections; grants and fallback tokens expire after {{ limits.token_days }} days. SSO approval shows the connection ID. Only the fallback shows a private token once; save that token before returning.</p>
         {% if connections %}
         <ul class="mt-6 space-y-3">
@@ -207,7 +242,7 @@
             <p class="flex flex-wrap gap-x-5 gap-y-2"><a href="/skill.md" class="font-bold text-gfa-light hover:text-white">Agent setup guide ↗</a><a href="/skill_api.md" class="font-bold text-gfa-light hover:text-white">API reference ↗</a><a href="/skill_prompt.md" class="font-bold text-gfa-light hover:text-white">Copyable agent prompt ↗</a></p>
             <p><a href="{{ url_for('agents.capabilities') }}" class="font-bold text-gfa-light hover:text-white">Read the capability endpoint</a> for the exact routes, supported payment assets and limitations.</p>
             <h3 class="pt-2 text-base font-bold text-white">GFAVIP SSO: identify the agent, then approve access</h3>
-            <p>Your agent exchanges its own PowerLobster identity for GFAVIP SSO through the provider’s supported flow. It calls <code>GET /api/agent/v1/me</code> with only its own <code>Authorization: Bearer</code> credential to learn its verified Wallet UUID. You privately confirm that UUID and approve it above. On private data requests, the agent must also send <code>X-Liquidity-Connection: &lt;approved connection ID&gt;</code>. A login alone does not grant access to your account, and a connection ID alone is not a credential.</p>
+            <p>Your agent exchanges its own PowerLobster identity for GFAVIP SSO through the provider’s supported flow. You can find its exact username above, review the matched AI-agent account, then explicitly approve its access. Alternatively, privately confirm its verified Wallet UUID from <code>GET /api/agent/v1/me</code> and use the advanced form. On private data requests, the agent must send its own <code>Authorization: Bearer</code> credential and <code>X-Liquidity-Connection: &lt;approved connection ID&gt;</code>. A login alone does not grant access to your account, and a connection ID alone is not a credential.</p>
             <h3 class="pt-2 text-base font-bold text-white">Trade assistant: bootstrap, then poll</h3>
             <ol class="list-decimal space-y-2 pl-5">
                 <li>With an approved Trade assistant connection, fetch <code>GET /api/agent/v1/trades?after=0&amp;limit=50</code>. Page with <code>next_cursor</code> while <code>has_more</code> is true. Fetch each relevant <code>/trades/&lt;id&gt;</code> to establish current terms. Do not expect the event stream to reconstruct older rooms.</li>
@@ -229,26 +264,17 @@
     </details>
 </div>
 <script>
-    const agentProfile = document.getElementById('agent-profile');
-    const agentMessages = document.getElementById('agent-include-messages');
-    const agentAuthMode = document.getElementById('agent-auth-mode');
-    const agentSsoFields = document.getElementById('agent-sso-fields');
-    const agentWalletId = document.getElementById('agent-gfavip-user-id');
-    function updateAgentMessageConsent() {
-        const canReadMessages = agentProfile.value === 'trade-assistant';
-        agentMessages.disabled = !canReadMessages;
-        if (!canReadMessages) agentMessages.checked = false;
-    }
-    agentProfile.addEventListener('change', updateAgentMessageConsent);
-    updateAgentMessageConsent();
-    function updateAgentAuthMode() {
-        const usesSso = agentAuthMode.value === 'gfavip-sso';
-        agentSsoFields.hidden = !usesSso;
-        agentWalletId.required = usesSso;
-        agentWalletId.disabled = !usesSso;
-    }
-    agentAuthMode.addEventListener('change', updateAgentAuthMode);
-    updateAgentAuthMode();
+    document.querySelectorAll('[data-agent-access-form]').forEach(function(form) {
+        const profile = form.querySelector('[data-agent-profile]');
+        const messages = form.querySelector('[data-agent-messages]');
+        function updateMessageConsent() {
+            const canReadMessages = profile.value === 'trade-assistant';
+            messages.disabled = !canReadMessages;
+            if (!canReadMessages) messages.checked = false;
+        }
+        profile.addEventListener('change', updateMessageConsent);
+        updateMessageConsent();
+    });
 </script>
 {% endif %}
 {% endblock %}

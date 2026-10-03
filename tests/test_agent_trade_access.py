@@ -77,17 +77,17 @@ class AgentTradeAccessTests(unittest.TestCase):
             self.assertEqual(db.session.get(AgentConnection, old_id).scope, 'drafts:read drafts:write')
             self.assertEqual(AgentDraft.query.count(), 0)
 
-    def test_human_must_explicitly_choose_trade_profile_and_message_consent(self):
+    def test_new_human_connections_default_read_only_and_require_message_consent(self):
         self.human.get('/agents')
         with self.human.session_transaction() as state:
             csrf = state['agent_workspace_csrf']
         response = self.human.post('/agents/connections', data={'label': 'default', 'csrf_token': csrf})
         self.assertEqual(response.status_code, 200)
         with self.app.app_context():
-            self.assertEqual(AgentConnection.query.one().scope, 'drafts:read drafts:write')
+            self.assertEqual(AgentConnection.query.one().scope, 'events:read trades:read')
         with self.human.session_transaction() as state:
             csrf = state['agent_workspace_csrf']
-        for choices in ({'include_messages': 'yes'}, {'profile': 'unknown'},
+        for choices in ({'profile': 'offer-drafts', 'include_messages': 'yes'}, {'profile': 'unknown'},
                         {'profile': 'trade-assistant', 'include_messages': 'true'}):
             self.assertEqual(self.human.post('/agents/connections', data={
                 'label': 'bad', 'csrf_token': csrf, **choices}).status_code, 400)

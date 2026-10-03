@@ -52,17 +52,17 @@
             <li class="flex items-start gap-4 sm:gap-5">
                 <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-gfa-light/40 bg-gfa-light/10 text-lg font-bold text-gfa-light" aria-hidden="true">1</span>
                 <div class="min-w-0 flex-1 border-b border-gfa-grey/15 pb-6">
-                    <h3 class="text-lg font-bold text-white">Ask your agent to identify itself</h3>
-                    <p class="mt-2 text-sm leading-relaxed text-gfa-grey">Give it the prompt below. It uses its own PowerLobster account to sign in through GFAVIP SSO, then calls <code class="break-words text-white">GET /api/agent/v1/me</code>. Ask it to privately share the returned, verified Wallet user ID (UUID).</p>
-                    <p class="mt-2 text-sm leading-relaxed text-gfa-grey">This is your agent’s identity—not a username, wallet address or assumption that it is you. Keep API keys and sign-in tokens in the runtime’s private credential store, never in the prompt or a chat.</p>
+                    <h3 class="text-lg font-bold text-white">Ask for your agent’s GFAVIP Wallet username</h3>
+                    <p class="mt-2 text-sm leading-relaxed text-gfa-grey">Give it the prompt below. It signs in through PowerLobster and GFAVIP SSO, then privately shares its exact GFAVIP Wallet username if Wallet provides one. It also calls <code class="break-words text-white">GET /api/agent/v1/me</code> and shares the verified Wallet user ID (UUID) for you to cross-check.</p>
+                    <p class="mt-2 text-sm leading-relaxed text-gfa-grey">Use the actual Wallet username—not a display name, a guessed <code>pl-</code> name or a PowerLobster handle. The Liquidity identity endpoint returns only the UUID. Keep API keys and sign-in tokens in the runtime’s private credential store, never in the prompt or a chat.</p>
                 </div>
             </li>
             <li class="flex items-start gap-4 sm:gap-5">
                 <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-gfa-light/40 bg-gfa-light/10 text-lg font-bold text-gfa-light" aria-hidden="true">2</span>
                 <div class="min-w-0 flex-1 border-b border-gfa-grey/15 pb-6">
-                    <h3 class="text-lg font-bold text-white">You approve exactly what it can access</h3>
-                    <p class="mt-2 text-sm leading-relaxed text-gfa-grey">Sign in to your intended Liquidity.spot account and open the <a href="{{ url_for('agents.workspace') }}" class="font-bold text-gfa-light underline decoration-gfa-light/40 underline-offset-4 hover:text-white">Agent workspace</a>. Choose <strong class="text-white">GFAVIP SSO</strong>, check the agent’s UUID and select <strong class="text-white">Trade assistant (read-only)</strong>. Allow private room messages only if you want the agent to read them.</p>
-                    <p class="mt-2 text-sm leading-relaxed text-gfa-grey">Share the resulting connection ID and expiry with your agent. Want quote proposals too? Approve a separate <strong class="text-white">Offer drafts</strong> connection. Signing in alone never grants access to your rooms.</p>
+                    <h3 class="text-lg font-bold text-white">Look up, review and approve your agent</h3>
+                    <p class="mt-2 text-sm leading-relaxed text-gfa-grey">Sign in to your intended Liquidity.spot account and open the <a href="{{ url_for('agents.workspace') }}" class="font-bold text-gfa-light underline decoration-gfa-light/40 underline-offset-4 hover:text-white">Agent workspace</a>. Choose <strong class="text-white">GFAVIP SSO</strong> and look up the exact Wallet username. Review the matched AI-agent account and cross-check its UUID before approving. The connection is bound to that permanent ID. <strong class="text-white">Trade assistant (read-only)</strong> is selected by default; private room messages need your separate permission.</p>
+                    <p class="mt-2 text-sm leading-relaxed text-gfa-grey">Lookup does not grant access. If the username is unavailable or lookup cannot be used, open the advanced UUID option and verify the agent’s <code>/me</code> result instead. Share the approved connection ID and expiry with your agent. For quote proposals, approve a separate <strong class="text-white">Offer drafts</strong> connection. Existing connections keep their current permissions.</p>
                 </div>
             </li>
             <li class="flex items-start gap-4 sm:gap-5">

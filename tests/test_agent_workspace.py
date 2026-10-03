@@ -38,7 +38,8 @@ class AgentWorkspaceTests(unittest.TestCase):
 
     def issue(self, client=None, label='My agent'):
         client = client or self.owner
-        response = client.post('/agents/connections', data={'csrf_token': self.csrf(client), 'label': label})
+        response = client.post('/agents/connections', data={'csrf_token': self.csrf(client), 'label': label,
+                                                          'profile': 'offer-drafts'})
         self.assertEqual(response.status_code, 200)
         token = re.search(r'ls_agent_[A-Za-z0-9_-]{43}', response.get_data(as_text=True)).group()
         with self.app.app_context():

@@ -68,6 +68,7 @@ DATABASE_URL=sqlite:///app.db
 GFAVIP_SERVICE_NAME=liquidity-spot
 REDIRECT_URI=http://localhost:8000/callback
 GFAVIP_WALLET_API_KEY=
+GFAVIP_WALLET_LOOKUP_API_KEY=
 GFAVIP_WALLET_BASE_URL=https://wallet.gfavip.com
 BTC_WATCHER_BASE_URL=https://blockstream.info/api
 HNS_WATCHER_BASE_URL=
@@ -78,7 +79,8 @@ Production notes:
 
 - Always set a strong `SECRET_KEY`.
 - Use a production database through `DATABASE_URL`.
-- Leave `GFAVIP_WALLET_API_KEY` empty unless Gems wallet integration is intentionally enabled.
+- Prefer `GFAVIP_WALLET_LOOKUP_API_KEY`, an app-owned Wallet service key with `lookup_users`, for the human username-lookup flow. The existing `GFAVIP_WALLET_API_KEY` is a fallback only if it has that permission. Operators must verify configuration and permission; this documentation does not imply production lookup is configured.
+- Leave `GFAVIP_WALLET_API_KEY` empty unless Gems integration or the permitted lookup fallback is intentionally enabled. Never use a bot's PowerLobster API key as either service key.
 - Do not commit `.env`, local databases, deploy logs, or private specs.
 
 ## GFAVIP Policy
@@ -173,8 +175,22 @@ route explicitly serves `text/plain; charset=utf-8` with inline disposition.
 
 New agents use **PowerLobster → GFAVIP SSO** as described in the public skill.
 They call `GET /api/agent/v1/me` with the SSO token to obtain their verified agent
-Wallet UUID. The human owner selects GFAVIP SSO in `/agents`, approves that exact
-UUID and chooses a profile. The agent sends its SSO token in `Authorization`
+Wallet UUID; that response remains UUID-only. If Wallet's SSO user response
+supplies the agent's GFAVIP Wallet username, the agent shares that exact username
+too, never a guessed `pl-` name, display name or PowerLobster handle.
+
+The human owner selects GFAVIP SSO in `/agents`, looks up the exact Wallet
+username, reviews the matched AI-agent account and cross-checks its UUID before
+explicitly approving access. The server binds the grant to the permanent Wallet
+UUID. Username lookup is a human-browser feature; it accepts no agent Bearer
+authorization and does not itself create a connection or permission. The
+advanced verified-UUID path remains available when lookup cannot be used.
+`POST /agents/lookup` requires human login and CSRF protection and returns an
+HTML review. The username flow's subsequent approval at
+`POST /agents/connections` requires its signed preview proof and explicit
+confirmation. Bots continue to use `/api/agent/v1/*`, not these browser routes.
+
+The agent sends its SSO token in `Authorization`
 and the approved ID in `X-Liquidity-Connection`. Identity is validated with
 Wallet on every request; the owner binding, expiry and scopes are checked
 locally. An agent's Wallet identity does not automatically inherit human access.
@@ -185,14 +201,15 @@ owner's own agent/runtime. Choose one permission profile:
 
 | Profile | Scopes | Purpose |
 | --- | --- | --- |
-| `offer-drafts` (default) | `drafts:read drafts:write` | Prepare private quote proposals; no room access. |
-| `trade-assistant` | `events:read trades:read` | Read owner-participant P2P event metadata and agreed terms. |
+| `trade-assistant` (default for new setup) | `events:read trades:read` | Read owner-participant P2P event metadata and agreed terms. |
 | Trade assistant with separate message consent | Above plus `trade_messages:read` | Also read private messages in those rooms. |
+| `offer-drafts` | `drafts:read drafts:write` | Prepare private quote proposals; no room access. |
 
 The form field is `profile`; private text requires an explicit
 `include_messages=yes` checkbox on a new trade-assistant connection. Existing
 credentials never widen automatically. To change permissions, revoke the old
 connection and create a new one. Every connection's actual scopes are visible.
+The username-first setup and new default leave all existing grants unchanged.
 
 Connections expire after seven days. Legacy scoped tokens appear once on a standalone page without
 external scripts. Store the token privately; never put it in URLs, model

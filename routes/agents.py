@@ -1,12 +1,16 @@
 """Human-managed credentials with separate drafts and read-only trade profiles."""
 from datetime import datetime
+from collections import OrderedDict
 import hashlib
 import hmac
 import json
 import re
 import secrets
+from threading import Lock
+from time import monotonic
 
-from flask import Blueprint, Response, jsonify, make_response, redirect, render_template, request, session, url_for
+from flask import Blueprint, Response, current_app, jsonify, make_response, redirect, render_template, request, session, url_for
+from itsdangerous import BadSignature, URLSafeTimedSerializer
 from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.exceptions import RequestEntityTooLarge
 
@@ -19,9 +23,12 @@ from services.agent_workspace import (
 from services.payment_assets import PAYMENT_ASSETS, format_decimal
 from services.trade_events import AgentTradeEvent, SAFE_STATUSES, SAFE_MILESTONES, serialize_event
 from services.agent_sso import AgentSSOGrant, create_sso_grant, validate_agent_identity
+from services.agent_lookup import lookup_agent_username, lookup_available
 
 
 agents_bp = Blueprint('agents', __name__)
+LOOKUP_REVIEW_SECONDS = 300
+APPROVAL_CSP = "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
 
 
 @agents_bp.before_request
@@ -99,7 +106,8 @@ def workspace_context(owner):
     history = AgentDraft.query.filter_by(owner_id=owner.id, status='dismissed').order_by(AgentDraft.dismissed_at.desc()).limit(20).all()
     return dict(connections=connections, drafts=pending + history, csrf_token=csrf_token(),
                 limits=LIMITS, profiles=PROFILES, issued_token=None, issued_connection=None,
-                issued_sso_grant=None,
+                issued_sso_grant=None, issued_matched_account=None,
+                lookup_enabled=lookup_available(), lookup_error=None,
                 grants_by_connection={grant.connection_id: grant for grant in AgentSSOGrant.query.join(
                     AgentConnection, AgentConnection.id == AgentSSOGrant.connection_id
                 ).filter(AgentConnection.owner_id == owner.id).all()})
@@ -111,24 +119,136 @@ def workspace():
     return render_template('agent_workspace.html', **workspace_context(current_owner()))
 
 
+def connection_choices():
+    """Validate what the owner will see before any lookup or approval."""
+    profile = request.form.get('profile', 'trade-assistant')
+    messages = request.form.get('include_messages', '')
+    label = request.form.get('label', '').strip()
+    if profile not in PROFILES:
+        raise WorkspaceError('Choose an available agent permission profile.')
+    if messages not in ('', 'yes') or (messages == 'yes' and profile != 'trade-assistant'):
+        raise WorkspaceError('Private message access requires explicit consent and the Trade assistant profile.')
+    if not 1 <= len(label) <= 80 or any(ord(c) < 32 or ord(c) == 127 for c in label):
+        raise WorkspaceError('Give the connection a name of 1–80 characters without control characters.')
+    return label, profile, messages == 'yes'
+
+
+def lookup_signer():
+    return URLSafeTimedSerializer(current_app.config['SECRET_KEY'], salt='liquidity-agent-lookup-review-v1')
+
+
+def lookup_csrf_binding():
+    return hashlib.sha256(session['agent_workspace_csrf'].encode()).hexdigest()
+
+
+def limit_owner_lookups(owner_id):
+    # Bound authenticated exact lookups per worker; Wallet also enforces its
+    # shared service-key quota. No identity results or credentials are cached.
+    mutex, attempts = current_app.extensions.setdefault('agent_lookup_limits', (Lock(), OrderedDict()))
+    now = monotonic()
+    with mutex:
+        for key in list(attempts):
+            if attempts[key][0] <= now - 60:
+                del attempts[key]
+        started, count = attempts.get(owner_id, (now, 0))
+        if count >= 10:
+            raise WorkspaceError('Too many account lookups. Wait one minute and try again.', 429)
+        attempts[owner_id] = (started, count + 1)
+        attempts.move_to_end(owner_id)
+        while len(attempts) > 2048:
+            attempts.popitem(last=False)
+
+
+@agents_bp.route('/agents/lookup', methods=['POST'])
+@login_required
+def lookup_agent():
+    owner = current_owner()
+    require_csrf()
+    try:
+        if any(len(request.form.getlist(key)) != 1 for key in request.form):
+            raise WorkspaceError('Submit each lookup field only once.')
+        label, profile, include_messages = connection_choices()
+        limit_owner_lookups(owner.id)
+        matched_account = lookup_agent_username(request.form.get('agent_username', ''))
+    except WorkspaceError as error:
+        context = workspace_context(owner)
+        context['lookup_error'] = str(error)
+        response = make_response(render_template('agent_workspace.html', **context), error.status)
+        if error.status == 429:
+            response.headers['Retry-After'] = '60'
+        return response
+    # Bind both the resolved permanent identity and the displayed permissions.
+    # Re-resolving a name during approval could select a newly renamed account.
+    proof = lookup_signer().dumps({'owner_id': owner.id, 'csrf': lookup_csrf_binding(),
+        'nonce': secrets.token_urlsafe(24),
+        'account': matched_account, 'label': label, 'profile': profile, 'messages': include_messages})
+    response = make_response(render_template('agent_lookup_review.html',
+        matched_account=matched_account, lookup_proof=proof, label=label,
+        profile=profile, include_messages=include_messages, profiles=PROFILES,
+        csrf_token=csrf_token(), owner_name=owner.username,
+        grant_days=LIMITS['token_days'], review_minutes=LOOKUP_REVIEW_SECONDS // 60))
+    response.headers['Content-Security-Policy'] = APPROVAL_CSP
+    return response
+
+
+def confirmed_lookup(owner):
+    allowed = {'csrf_token', 'auth_mode', 'identity_mode', 'lookup_proof', 'confirm_agent'}
+    if (set(request.form) - allowed or any(len(request.form.getlist(key)) != 1 for key in request.form)
+            or request.form.get('confirm_agent') != 'yes'):
+        raise WorkspaceError('Review the matched account and explicitly confirm the displayed access.')
+    try:
+        payload = lookup_signer().loads(request.form.get('lookup_proof', ''), max_age=LOOKUP_REVIEW_SECONDS)
+    except BadSignature:
+        raise WorkspaceError('This account review expired or changed. Look up the agent again.') from None
+    if (not isinstance(payload, dict) or payload.get('owner_id') != owner.id
+            or payload.get('csrf') != lookup_csrf_binding()
+            or not isinstance(payload.get('nonce'), str)
+            or not re.fullmatch(r'[A-Za-z0-9_-]{32}', payload['nonce'])):
+        raise WorkspaceError('This review belongs to a different account or session. Look up the agent again.')
+    return payload
+
+
 @agents_bp.route('/agents/connections', methods=['POST'])
 @login_required
 def create_connection():
     owner = current_owner()
     require_csrf()
-    profile = request.form.get('profile', 'offer-drafts')
-    message_choice = request.form.get('include_messages', '')
-    if message_choice not in ('', 'yes'):
-        raise WorkspaceError('Message access requires the explicit consent checkbox.')
     auth_mode = request.form.get('auth_mode', 'scoped-token')
     raw_token = None
+    matched_account = None
     if auth_mode == 'gfavip-sso':
-        connection = create_sso_grant(owner.id, request.form.get('label', ''),
-            request.form.get('agent_gfavip_user_id', ''), profile=profile,
-            include_messages=message_choice == 'yes')
+        identity_mode = request.form.get('identity_mode', 'uuid')
+        if identity_mode == 'username':
+            reviewed = confirmed_lookup(owner)
+            matched_account = reviewed['account']
+            # Persist single-use review consumption using the existing UNIQUE
+            # credential digest. SSO connections cannot use legacy tokens, so
+            # this is an internal replay marker, never a login credential.
+            secret = current_app.config['SECRET_KEY']
+            if isinstance(secret, str):
+                secret = secret.encode()
+            # Hash the signed nonce, not its URL/base64 representation: accepted
+            # alternate signature encodings must consume the same review.
+            review_hash = hmac.new(secret, ('lookup-grant:' + owner.id + ':' + reviewed['nonce']).encode(),
+                                   hashlib.sha256).hexdigest()
+            if AgentConnection.query.filter_by(token_hash=review_hash).first():
+                raise WorkspaceError('This review has already been approved. Return to the Agent workspace.', 409)
+            connection = create_sso_grant(owner.id, reviewed['label'], matched_account['id'],
+                profile=reviewed['profile'], include_messages=reviewed['messages'])
+            connection.token_hash = review_hash
+        elif identity_mode == 'uuid':
+            if 'lookup_proof' in request.form or 'agent_username' in request.form:
+                raise WorkspaceError('Use the username review flow or the separate Advanced Wallet UUID form.')
+            label, profile, include_messages = connection_choices()
+            connection = create_sso_grant(owner.id, label, request.form.get('agent_gfavip_user_id', ''),
+                profile=profile, include_messages=include_messages)
+        else:
+            raise WorkspaceError('Choose username lookup or the Advanced Wallet UUID option.')
     elif auth_mode == 'scoped-token':
-        connection, raw_token = issue_connection(owner.id, request.form.get('label', ''),
-                                                  profile=profile, include_messages=message_choice == 'yes')
+        if 'lookup_proof' in request.form or request.form.get('identity_mode') == 'username':
+            raise WorkspaceError('Username approval requires GFAVIP SSO.')
+        label, profile, include_messages = connection_choices()
+        connection, raw_token = issue_connection(owner.id, label, profile=profile, include_messages=include_messages)
     else:
         raise WorkspaceError('Choose GFAVIP SSO or the legacy scoped-token connection.')
     db.session.commit()
@@ -136,10 +256,11 @@ def create_connection():
     session['agent_workspace_csrf'] = secrets.token_urlsafe(32)
     context = workspace_context(owner)
     context.update(issued_token=raw_token, issued_connection=connection,
-                   issued_sso_grant=connection.sso_grant if auth_mode == 'gfavip-sso' else None)
+                   issued_sso_grant=connection.sso_grant if auth_mode == 'gfavip-sso' else None,
+                   issued_matched_account=matched_account)
     response = make_response(render_template('agent_workspace.html', **context))
     # The issued-token branch is standalone: no external scripts can read it.
-    response.headers['Content-Security-Policy'] = "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
+    response.headers['Content-Security-Policy'] = APPROVAL_CSP
     return response
 
 
@@ -179,7 +300,7 @@ def dismiss_draft(draft_id):
 def capabilities():
     return jsonify({
         'version': 1, 'mode': 'human-controlled', 'draft_mode': 'draft-only', 'scope': SCOPE,
-        'profiles': PROFILES, 'default_profile': 'offer-drafts',
+        'profiles': PROFILES, 'default_profile': 'trade-assistant',
         'documentation': {'skill': '/skill.md', 'api': '/skill_api.md', 'routine_prompt': '/skill_prompt.md'},
         'authentication': {
             'preferred': 'gfavip-sso', 'identity_url': '/api/agent/v1/me',

@@ -26,8 +26,27 @@ validation; it does not create a user, browser session, permission or trade.
 It rejects query parameters. Never use an ID from a URL, a username guess,
 an unverified token payload or an `agent_context.owner_id` as authorization.
 
-The human owner approves this verified agent Wallet ID in `/agents`, selecting
-a profile and optional chat access. Every private data request then needs:
+For username-first setup, the agent privately shares its exact GFAVIP Wallet
+username if Wallet's SSO user response supplies it, plus its verified `/me` UUID
+for cross-checking. `/me` remains UUID-only. Never derive a username from the
+PowerLobster handle, add a guessed `pl-` prefix, or use a display name instead.
+
+The human owner uses `/agents` to look up that exact username, review the
+matched AI-agent account, and explicitly approve its access. The server binds
+the grant to the matched permanent Wallet UUID. Lookup creates no connection
+or permission; it is a signed-in human browser workflow, not an endpoint for
+agent Bearer authentication. Advanced approval using the independently verified
+UUID remains available when username lookup cannot be used.
+
+The browser flow uses `POST /agents/lookup` with the human session and CSRF
+protection to show an HTML identity review. For this flow, the later
+`POST /agents/connections` requires the signed review proof and explicit human
+confirmation. These are not agent API endpoints: bots must not call `/agents/*`
+or reuse human cookies to perform lookup or approval.
+
+**Trade assistant** is the default for new setup; chat text needs separate
+consent and Offer drafts requires its own connection. Existing grants and their
+scopes do not change. Every private data request still needs:
 
 ```http
 Authorization: Bearer <GFAVIP_SSO_TOKEN>
@@ -47,9 +66,9 @@ does not substitute for either API credential. No API login sets a browser cooki
 
 | Profile | Scopes | Access |
 | --- | --- | --- |
-| Offer drafts | `drafts:read drafts:write` | List and prepare private drafts for the approving owner. |
-| Trade assistant | `events:read trades:read` | Event metadata and rooms in which the owner participates. |
+| Trade assistant (default) | `events:read trades:read` | Event metadata and rooms in which the owner participates. |
 | Trade assistant + chat consent | Above + `trade_messages:read` | Also read messages in those rooms. |
+| Offer drafts | `drafts:read drafts:write` | List and prepare private drafts for the approving owner. |
 
 No existing connection silently receives new scopes. One agent can hold
 separate owner-approved connections for different profiles. Treat the selected
