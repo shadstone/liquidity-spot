@@ -21,6 +21,7 @@ from services.payment_assets import (
     get_payment_asset, parse_offer_amounts, make_terms_snapshot, format_decimal,
 )
 from services.trade_events import emit_trade_event, lock_trade_bond_writes, lock_trade_message_writes
+from services.offer_sharing import build_offer_share_text
 
 main_bp = Blueprint('main', __name__)
 SWAP_STALE_CANCEL_HOURS = 24
@@ -1242,6 +1243,7 @@ def p2p():
 def p2p_offer_details(offer_id):
     offer = P2POffer.query.get_or_404(offer_id)
     trade = offer.trade[0] if offer.trade else None
+    share_url = _external_url_for('main.p2p_offer_details', offer_id=offer.id)
     return render_template(
         'p2p_offer.html',
         offer=offer,
@@ -1251,7 +1253,8 @@ def p2p_offer_details(offer_id):
         is_participant=bool(
             trade and session.get('user_id') in [trade.creator_id, trade.counterparty_id]
         ),
-        share_url=_external_url_for('main.p2p_offer_details', offer_id=offer.id),
+        share_url=share_url,
+        share_text=build_offer_share_text(offer, share_url),
     )
 
 
@@ -1374,7 +1377,7 @@ def create_p2p_offer():
         )
         flash(
             f"Offer #{offer.id} is live. {offer_context['waiting_label']}. "
-            f'Share this page with someone who can take the other side.{bond_confirmation}',
+            f'Copy the complete offer message on this page and share it with someone who can take the other side.{bond_confirmation}',
             'success'
         )
         return redirect(url_for('main.p2p_offer_details', offer_id=offer.id))

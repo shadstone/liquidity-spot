@@ -3,9 +3,9 @@
 {% block title %}Offer #{{ offer.id }}: {{ format_decimal(offer.settlement_amount_hns) }} HNS | Liquidity.spot{% endblock %}
 
 {% block meta %}
-<meta name="description" content="{{ offer_context.waiting_label }} for a {{ format_decimal(offer.settlement_amount_hns) }} HNS peer-to-peer trade paid in {{ offer.payment_asset.label }} on Liquidity.spot.">
-<meta property="og:title" content="{{ offer_context.waiting_label }}: {{ format_decimal(offer.settlement_amount_hns) }} HNS · {{ offer.payment_asset.label }}">
-<meta property="og:description" content="{{ offer_context.counterparty_explanation }}">
+<meta name="description" content="{{ share_text if share_text else 'This offer is no longer open. Check its current status on Liquidity.spot.' }}">
+<meta property="og:title" content="{{ offer_context.waiting_label if offer.status == 'open' else 'Offer ' ~ offer.status }}: {{ format_decimal(offer.settlement_amount_hns) }} HNS · {{ offer.payment_asset.label }}">
+<meta property="og:description" content="{{ share_text if share_text else 'This offer is no longer open. Check its current status on Liquidity.spot.' }}">
 <meta property="og:type" content="website">
 <meta property="og:url" content="{{ share_url }}">
 {% endblock %}
@@ -87,7 +87,7 @@
             {% if offer.status == 'open' and is_creator %}
                 <div class="rounded-lg border border-gfa-light/30 bg-gfa-light/10 p-4">
                     <p class="font-bold text-white">Your offer is live, but it has not been matched yet.</p>
-                    <p class="mt-1 text-sm text-gfa-grey">Share this permalink with an {{ offer_context.counterparty_role }}. They can open it and accept without a GFAVIP account.</p>
+                    <p class="mt-1 text-sm text-gfa-grey"><a href="#offer-sharing" class="font-bold text-gfa-light underline underline-offset-4">Copy the complete offer message below</a> and share it with an {{ offer_context.counterparty_role }}. They can review it and accept without a GFAVIP account.</p>
                 </div>
             {% elif offer.status == 'open' %}
                 <form method="POST" action="{{ url_for('main.accept_p2p_offer', offer_id=offer.id) }}" onsubmit="return window.confirm('Accept offer #{{ offer.id }} and open a shared trade room? Do not send funds until both sides confirm the next step there.')">
@@ -112,15 +112,28 @@
                 <p class="rounded-lg border border-gfa-grey/20 bg-black/30 p-4 text-center text-gfa-grey">This offer is no longer open.</p>
             {% endif %}
 
-            <div class="rounded-lg border border-gfa-grey/20 bg-black/30 p-4">
-                <label for="offer-share-url" class="text-sm font-bold text-white">Shareable offer permalink</label>
+            <section id="offer-sharing" aria-labelledby="offer-sharing-title" style="scroll-margin-top: var(--liquidity-sticky-offset, 10rem)" class="min-w-0 rounded-xl border border-gfa-light/30 bg-black/30 p-4 sm:p-5">
+                {% if share_text %}
+                <h2 id="offer-sharing-title" class="text-xl font-bold text-white">Share this offer</h2>
+                <p id="offer-share-help" class="mt-2 text-sm leading-relaxed text-gfa-grey">Share the complete paragraph—not just the link—so people can see the amount, price and payment network. Copy it into Telegram or another group where trading posts are welcome.</p>
+                <label for="offer-share-text" class="mt-4 block text-sm font-bold text-white">Ready-to-share message</label>
+                <textarea id="offer-share-text" readonly rows="7" spellcheck="false" aria-describedby="offer-share-help offer-share-manual" class="mt-2 w-full resize-y rounded-lg border border-gfa-grey/30 bg-black/50 p-3 text-sm leading-relaxed text-white focus:border-gfa-light focus:outline-none focus:ring-1 focus:ring-gfa-light">{{ share_text }}</textarea>
+                <div class="mt-3 flex flex-col gap-2 sm:flex-row">
+                    <button id="copy-offer-text" type="button" class="rounded-lg bg-gfa-light px-4 py-3 font-bold text-gfa-dark hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">Copy full message</button>
+                    <button id="share-offer-text" type="button" hidden class="rounded-lg border border-gfa-light/40 px-4 py-3 font-bold text-gfa-light hover:bg-gfa-light/10">Share message…</button>
+                </div>
+                <p id="offer-share-manual" class="mt-2 text-xs leading-relaxed text-gfa-grey">You can also select and copy the text manually. Nothing is posted automatically. Availability can change after sharing; recipients should check the offer page.</p>
+                {% else %}
+                <h2 id="offer-sharing-title" class="text-lg font-bold text-white">Offer link for reference</h2>
+                <p class="mt-2 text-sm text-gfa-grey">This offer is no longer open. The promotional message is unavailable so it is not shared as an active listing.</p>
+                {% endif %}
+                <label for="offer-share-url" class="mt-5 block text-sm font-bold text-gfa-grey">Shareable offer permalink</label>
                 <div class="mt-2 flex flex-col gap-2 sm:flex-row">
                     <input id="offer-share-url" type="text" readonly value="{{ share_url }}" class="min-w-0 flex-1 rounded border border-gfa-grey/30 bg-black/50 p-3 font-mono text-sm text-gfa-grey">
-                    <button id="copy-offer-link" type="button" class="rounded bg-gfa-blue px-4 py-3 font-bold text-white hover:bg-blue-600">Copy Link</button>
-                    <button id="share-offer-link" type="button" class="hidden rounded border border-gfa-light/40 px-4 py-3 font-bold text-gfa-light hover:bg-gfa-light/10">Share</button>
+                    <button id="copy-offer-link" type="button" class="rounded border border-gfa-grey/30 px-4 py-3 text-sm font-bold text-gfa-grey hover:border-gfa-light hover:text-white">Copy link only</button>
                 </div>
-                <p id="share-offer-status" class="mt-2 min-h-5 text-sm text-gfa-light" aria-live="polite"></p>
-            </div>
+                <p id="share-offer-status" role="status" class="mt-2 min-h-5 text-sm text-gfa-light" aria-live="polite" aria-atomic="true"></p>
+            </section>
         </div>
     </section>
 
@@ -129,36 +142,5 @@
     </section>
 </div>
 
-<script>
-    const offerShareUrl = document.getElementById('offer-share-url');
-    const copyOfferLink = document.getElementById('copy-offer-link');
-    const shareOfferLink = document.getElementById('share-offer-link');
-    const shareOfferStatus = document.getElementById('share-offer-status');
-
-    copyOfferLink.addEventListener('click', async () => {
-        try {
-            await navigator.clipboard.writeText(offerShareUrl.value);
-            shareOfferStatus.textContent = 'Offer link copied.';
-        } catch (error) {
-            offerShareUrl.focus();
-            offerShareUrl.select();
-            shareOfferStatus.textContent = 'Select and copy the highlighted link.';
-        }
-    });
-
-    if (navigator.share) {
-        shareOfferLink.classList.remove('hidden');
-        shareOfferLink.addEventListener('click', async () => {
-            try {
-                await navigator.share({
-                    title: {{ (offer_context.waiting_label ~ ': ' ~ format_decimal(offer.settlement_amount_hns) ~ ' HNS · ' ~ offer.payment_asset.label)|tojson }},
-                    text: '{{ offer_context.action_label }} on Liquidity.spot',
-                    url: offerShareUrl.value
-                });
-            } catch (error) {
-                if (error.name !== 'AbortError') shareOfferStatus.textContent = 'Could not open the share menu. Copy the link instead.';
-            }
-        });
-    }
-</script>
+<script src="{{ url_for('static', filename='js/offer-share.js') }}" defer></script>
 {% endblock %}
