@@ -166,7 +166,7 @@
         });
     </script>
 
-    <section class="sticky top-0 z-40 border-y border-gfa-light/20 bg-black/90 backdrop-blur">
+    <section id="trade-notice-stack" class="sticky top-0 z-40 border-y border-gfa-light/20 bg-black/90 backdrop-blur" aria-label="Trade notices and agent setup">
         <div class="container mx-auto space-y-3 px-4 py-3">
             {% if guest_recovery_notice %}
                 <div class="flex flex-col gap-3 rounded border border-gfa-light/30 bg-gfa-light/10 p-3 sm:flex-row sm:items-center sm:justify-between">
@@ -208,7 +208,7 @@
                         </a>
                     </div>
                 </div>
-            {% elif not guest_recovery_notice %}
+            {% elif not guest_recovery_notice and request.endpoint != 'agent_docs.agent_guide' %}
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <p class="text-sm text-gfa-grey">
                         <strong class="text-white">No active trades yet.</strong>
@@ -227,6 +227,17 @@
                     </div>
                 </div>
             {% endif %}
+            <aside id="agent-help-banner" aria-label="AI assistant setup" class="rounded-lg border border-gfa-light/30 bg-gfa-light/10">
+                <div class="flex items-center gap-2 pl-3 pr-1 sm:pl-4">
+                    <a href="{{ url_for('agent_docs.agent_guide') }}" class="flex min-h-[44px] min-w-0 flex-1 flex-wrap items-center justify-between gap-x-3 gap-y-0.5 py-2 text-sm font-bold text-white hover:text-gfa-light focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gfa-light">
+                        <span>Ask your AI agent to help</span>
+                        <span class="text-xs text-gfa-light">Setup guide <span aria-hidden="true">&rarr;</span></span>
+                    </a>
+                    <button id="dismiss-agent-help" type="button" aria-label="Hide AI assistant banner for this tab" class="h-11 w-11 shrink-0 rounded text-center leading-[44px] text-gfa-grey hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-gfa-light" hidden>
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+            </aside>
         </div>
     </section>
 
@@ -281,6 +292,7 @@
                 <a href="{{ url_for('main.maker_mode') }}" class="hover:text-gfa-light">Maker Mode</a>
                 <a href="{{ url_for('main.orders') }}" class="hover:text-gfa-light">Atomic Swaps</a>
                 <a href="{{ url_for('main.tutorial') }}" class="hover:text-gfa-light">Tutorial</a>
+                <a href="{{ url_for('agent_docs.agent_guide') }}" class="hover:text-gfa-light">AI assistant setup</a>
                 <a href="{{ url_for('main.gems_guide') }}" class="hover:text-gfa-light">Gems</a>
                 <a href="{{ url_for('main.opensource') }}" class="hover:text-gfa-light">Open Source</a>
                 {% if session.get('user_id') %}
@@ -295,5 +307,6 @@
             <p>&copy; 2026 Liquidity.spot - Network-aware HNS P2P Coordination</p>
         </div>
     </footer>
+    <script src="{{ url_for('static', filename='js/agent-guide.js') }}" defer></script>
 </body>
 </html>
