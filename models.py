@@ -1,5 +1,7 @@
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
+from decimal import Decimal
+from services.payment_assets import get_payment_asset, quote_total
 
 db = SQLAlchemy()
 
@@ -93,6 +95,10 @@ class P2POffer(db.Model):
     side = db.Column(db.String(10), nullable=False)            # buy or sell HNS
     amount_hns = db.Column(db.Numeric(precision=24, scale=8), nullable=False)
     price_btc_per_hns = db.Column(db.Numeric(precision=24, scale=12), nullable=False)
+    # Legacy BTC field is retained for compatibility; EVM rates use exact text.
+    payment_asset_id = db.Column(db.String(32), nullable=True)
+    price_quote_per_hns = db.Column(db.String(80), nullable=True)
+    amount_hns_exact = db.Column(db.String(80), nullable=True)
     gems_stake = db.Column(db.Integer, default=0)
     payment_method = db.Column(db.String(50), default='Manual Wallet Transfer')
     notes = db.Column(db.Text)
@@ -105,12 +111,37 @@ class P2POffer(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     creator = db.relationship('User', backref='p2p_offers')
 
+    @property
+    def payment_asset(self):
+        return get_payment_asset(self.payment_asset_id or 'btc-bitcoin')
+
+    @property
+    def settlement_amount_hns(self):
+        return Decimal(self.amount_hns_exact) if self.amount_hns_exact is not None else Decimal(self.amount_hns)
+
+    @property
+    def quote_asset(self):
+        return self.payment_asset['symbol']
+
+    @property
+    def quote_network(self):
+        return self.payment_asset['network']
+
+    @property
+    def quote_price(self):
+        return Decimal(self.price_quote_per_hns) if self.price_quote_per_hns is not None else Decimal(self.price_btc_per_hns)
+
+    @property
+    def quote_total(self):
+        return quote_total(self.settlement_amount_hns, self.quote_price, self.payment_asset['decimals'])
+
 class P2PTrade(db.Model):
     __tablename__ = 'p2p_trades'
     id = db.Column(db.Integer, primary_key=True)
     offer_id = db.Column(db.Integer, db.ForeignKey('p2p_offers.id'), nullable=False)
     creator_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=False)
     counterparty_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=False)
+    terms_snapshot = db.Column(db.JSON, nullable=True)
     status = db.Column(db.String(20), default='matched')       # matched / completed / canceled / disputed / no_show
     milestone = db.Column(db.String(30), default='matched')    # matched / payment_sent / payment_received / released / completed
     alice_lock_txid = db.Column(db.String(128))
@@ -131,6 +162,38 @@ class P2PTrade(db.Model):
     offer = db.relationship('P2POffer', backref='trade')
     creator = db.relationship('User', foreign_keys=[creator_id])
     counterparty = db.relationship('User', foreign_keys=[counterparty_id])
+
+    @property
+    def side(self):
+        return self.terms_snapshot['side'] if self.terms_snapshot else self.offer.side
+
+    @property
+    def amount_hns(self):
+        return Decimal(self.terms_snapshot['amount_hns']) if self.terms_snapshot else self.offer.settlement_amount_hns
+
+    @property
+    def payment_asset(self):
+        return dict(self.terms_snapshot['payment_asset']) if self.terms_snapshot else self.offer.payment_asset
+
+    @property
+    def quote_asset(self):
+        return self.payment_asset['symbol']
+
+    @property
+    def quote_network(self):
+        return self.payment_asset['network']
+
+    @property
+    def quote_price(self):
+        return Decimal(self.terms_snapshot['price']) if self.terms_snapshot else self.offer.quote_price
+
+    @property
+    def quote_total(self):
+        return Decimal(self.terms_snapshot['total']) if self.terms_snapshot else self.offer.quote_total
+
+    @property
+    def payment_method(self):
+        return self.terms_snapshot['payment_method'] if self.terms_snapshot else self.offer.payment_method
 
 class P2PTradeMessage(db.Model):
     __tablename__ = 'p2p_trade_messages'

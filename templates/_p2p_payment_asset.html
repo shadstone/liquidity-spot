@@ -1,0 +1,16 @@
+<section class="rounded-xl border border-gfa-light/30 bg-gfa-light/5 p-4" aria-label="Agreed payment asset and network">
+    <h2 class="font-bold text-white">Payment: {{ payment_asset.symbol }} on {{ payment_asset.network_label }}</h2>
+    <dl class="mt-3 space-y-2 text-sm">
+        <div><dt class="inline text-gfa-grey">HNS network:</dt> <dd class="inline text-white">Handshake mainnet</dd></div>
+        <div><dt class="inline text-gfa-grey">Payment network:</dt> <dd class="inline font-bold text-white">{{ payment_asset.network_label }}{% if payment_asset.chain_id %} · Chain ID {{ payment_asset.chain_id }}{% endif %}</dd></div>
+        {% if payment_asset.contract %}
+        <div><dt class="text-gfa-grey">Exact token contract — not a receiving address</dt><dd class="mt-1 break-all font-mono text-xs text-white">{{ payment_asset.contract }}</dd></div>
+        {% else %}
+        <div><dt class="inline text-gfa-grey">Asset type:</dt> <dd class="inline text-white">Native {{ payment_asset.symbol }}</dd></div>
+        {% endif %}
+    </dl>
+    <p class="mt-3 text-sm text-gfa-grey">Manual P2P only. No escrow, atomic swap, or automatic bridging. Sender pays network fees separately{% if payment_asset.gas_asset %} in {{ payment_asset.gas_asset }}{% endif %}; do not subtract them from the agreed transfer amount.</p>
+    {% if payment_asset.chain_id %}
+    <p class="mt-3 rounded-lg bg-yellow-950/30 p-3 text-sm text-yellow-100"><strong>Check the network in your wallet before sending.</strong> The same 0x address can exist on Ethereum, Base, and Optimism. A matching address alone does not confirm the right network. Confirm the token contract too.</p>
+    {% endif %}
+</section>

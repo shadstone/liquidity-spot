@@ -16,7 +16,7 @@
                 </p>
             </div>
             <div class="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-4 text-sm text-yellow-100 md:max-w-sm">
-                <strong>How it works:</strong> Posting does not send BTC or HNS. It creates a public offer that still needs a buyer or seller to accept it.
+                <strong>How it works:</strong> Posting does not send funds. Choose the payment asset and network explicitly. This is manual P2P, not escrow, an atomic swap, or a bridge.
             </div>
         </div>
     </div>
@@ -33,14 +33,24 @@
                 <div>
                     <label class="block text-gfa-grey mb-1">Side</label>
                     <select name="side" id="p2p-side" class="w-full bg-black/50 border border-gfa-grey/30 rounded p-2 text-white">
-                        <option value="buy">Buy HNS (Sell BTC)</option>
-                        <option value="sell">Sell HNS (Buy BTC)</option>
+                        <option value="buy">Buy HNS</option>
+                        <option value="sell">Sell HNS</option>
                     </select>
                 </div>
                 <div>
-                    <label class="block text-gfa-grey mb-1">Amount (HNS)</label>
+                    <label for="p2p-payment-asset" class="block text-gfa-grey mb-1">Pay / receive with</label>
+                    <select name="payment_asset" id="p2p-payment-asset" class="w-full bg-black/50 border border-gfa-grey/30 rounded p-2 text-white">
+                        {% for asset in payment_assets %}
+                        <option value="{{ asset.id }}" {{ 'selected' if asset.id == 'btc-bitcoin' else '' }}>{{ asset.label }}</option>
+                        {% endfor %}
+                    </select>
+                    <p class="mt-2 text-xs text-gfa-grey">Asset + network are part of the deal, not interchangeable payment options. HNS is always on Handshake mainnet.</p>
+                    <div id="p2p-network-summary" class="mt-3 rounded-lg border border-gfa-grey/20 bg-black/25 p-3 text-sm text-gfa-grey" aria-live="polite"></div>
+                </div>
+                <div>
+                    <label for="p2p-amount" class="block text-gfa-grey mb-1">Amount (HNS)</label>
                     <div class="space-y-2">
-                        <input type="number" step="0.00000001" name="amount_hns" id="p2p-amount" required class="w-full bg-black/50 border border-gfa-grey/30 rounded p-2 text-white" placeholder="1000">
+                        <input type="text" inputmode="decimal" name="amount_hns" id="p2p-amount" required class="w-full bg-black/50 border border-gfa-grey/30 rounded p-2 text-white" placeholder="1000">
                         <div class="flex flex-wrap gap-2">
                             <button type="button" class="text-xs bg-white/10 text-gfa-grey px-3 py-1 rounded hover:bg-white/20" onclick="setP2PAmount('250')">250</button>
                             <button type="button" class="text-xs bg-white/10 text-gfa-grey px-3 py-1 rounded hover:bg-white/20" onclick="setP2PAmount('500')">500</button>
@@ -48,19 +58,17 @@
                             <button type="button" class="text-xs bg-white/10 text-gfa-grey px-3 py-1 rounded hover:bg-white/20" onclick="setP2PAmount('5000')">5000</button>
                         </div>
                     </div>
+                    <p class="mt-1 text-xs text-gfa-grey">Up to 6 decimal places. Enter a plain decimal, for example 0.5.</p>
                 </div>
                 <div>
-                    <label class="block text-gfa-grey mb-1">Price (BTC per HNS)</label>
+                    <label for="p2p-price" id="p2p-price-label" class="block text-gfa-grey mb-1">Price (BTC per HNS)</label>
                     <div class="space-y-2">
-                        <input type="text" inputmode="decimal" name="price" id="p2p-price" required class="w-full bg-black/50 border border-gfa-grey/30 rounded p-2 text-white" placeholder="{{ '%.12f'|format(current_price) }}" value="{{ '%.12f'|format(current_price) }}">
-                        <div class="flex flex-wrap gap-2">
-                            <button type="button" class="text-xs bg-gfa-blue text-white px-3 py-1 rounded hover:bg-blue-600" onclick="setP2PPriceToMarket()">Use Market</button>
-                            <button type="button" class="text-xs bg-white/10 text-gfa-grey px-3 py-1 rounded hover:bg-white/20" onclick="adjustP2PPrice(-2)">Market -2%</button>
-                            <button type="button" class="text-xs bg-white/10 text-gfa-grey px-3 py-1 rounded hover:bg-white/20" onclick="adjustP2PPrice(2)">Market +2%</button>
-                            <button type="button" class="text-xs bg-white/10 text-gfa-grey px-3 py-1 rounded hover:bg-white/20" onclick="adjustP2PPrice(5)">Market +5%</button>
+                        <input type="text" inputmode="decimal" name="price" id="p2p-price" required class="w-full bg-black/50 border border-gfa-grey/30 rounded p-2 text-white" placeholder="{{ format_decimal(current_price) }}" value="{{ format_decimal(current_price) }}">
+                        <div id="p2p-btc-reference" class="flex flex-wrap gap-2">
+                            <button type="button" class="text-xs bg-gfa-blue text-white px-3 py-1 rounded hover:bg-blue-600" onclick="setP2PPriceToMarket()">Use BTC reference</button>
                         </div>
                     </div>
-                    <p class="text-xs text-gfa-grey mt-1">Supports up to 12 decimal places. Market: <span class="font-mono">{{ '%.12f'|format(current_price) }}</span></p>
+                    <p class="text-xs text-gfa-grey mt-1" id="p2p-price-help">Set your own rate. The BTC reference is indicative, not an executable price.</p>
                 </div>
                 <div>
                     <label class="block text-gfa-grey mb-1">Payment Method</label>
@@ -84,9 +92,10 @@
                 </div>
                 <div class="bg-black/40 border border-gfa-grey/20 rounded p-3 text-sm text-gfa-grey">
                     <div class="flex items-center justify-between gap-4">
-                        <span>Estimated Total BTC</span>
-                        <span class="font-mono text-gfa-light" id="p2p-total-btc">0.000000000000 BTC</span>
+                        <span>Transfer total</span>
+                        <span class="font-mono text-gfa-light break-all" id="p2p-total-btc">—</span>
                     </div>
+                    <p class="mt-2 text-xs">Total rounded to token precision; sender pays network fees separately. Review the final amount on the offer page before sharing.</p>
                 </div>
                 <div class="flex flex-wrap gap-2">
                     <button type="button" class="text-xs bg-white/10 text-gfa-grey px-3 py-1 rounded hover:bg-white/20" onclick="reuseLastP2PListing()">Reuse Last Listing</button>
@@ -101,6 +110,10 @@
         <div class="xl:col-span-3 bg-black/30 p-6 rounded-lg border border-gfa-grey/20">
             <h2 class="text-2xl font-bold text-white mb-4">Open P2P Offers</h2>
             <p class="mb-4 text-sm text-gfa-grey">Each listing is waiting for a real counterparty. Open or share an offer to connect the HNS buyer and seller.</p>
+            <form method="GET" action="{{ url_for('main.p2p') }}" class="mb-5 flex flex-wrap items-end gap-2">
+                <div class="min-w-0 flex-1"><label for="payment-filter" class="mb-1 block text-sm text-gfa-grey">Filter payment asset + network</label><select id="payment-filter" name="payment_asset" class="w-full rounded border border-gfa-grey/30 bg-black/50 p-2 text-white"><option value="">All supported payments</option>{% for asset in payment_assets %}<option value="{{ asset.id }}" {{ 'selected' if request.args.get('payment_asset') == asset.id else '' }}>{{ asset.label }}</option>{% endfor %}</select></div>
+                <button type="submit" class="rounded bg-gfa-blue px-4 py-2 font-bold text-white">Filter</button>
+            </form>
             {% if offers %}
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-sm">
@@ -109,7 +122,7 @@
                                 <th class="p-2">User</th>
                                 <th class="p-2">Role</th>
                                 <th class="p-2">HNS</th>
-                                <th class="p-2">BTC/HNS</th>
+                                <th class="p-2">Price per HNS</th>
                                 <th class="p-2">Details</th>
                                 <th class="p-2 text-right">Action</th>
                             </tr>
@@ -131,8 +144,8 @@
                                     <span class="block text-xs font-bold text-yellow-200">{{ context.waiting_label }}</span>
                                     <span class="mt-1 block text-xs text-gfa-grey leading-snug">Creator: {{ context.creator_role }}</span>
                                 </td>
-                                <td class="p-2 align-top">{{ offer.amount_hns }}</td>
-                                <td class="p-2 align-top font-mono">{{ '%.12f'|format(offer.price_btc_per_hns) }}</td>
+                                <td class="p-2 align-top">{{ format_decimal(offer.settlement_amount_hns) }}</td>
+                                <td class="p-2 align-top"><span class="block font-mono">{{ format_decimal(offer.quote_price) }} {{ offer.quote_asset }}</span><span class="mt-1 block text-xs font-bold text-gfa-light">{{ offer.payment_asset.network_label }}</span><span class="mt-1 block text-xs text-gfa-grey">Total {{ format_decimal(offer.quote_total) }} {{ offer.quote_asset }}</span></td>
                                 <td class="p-2 align-top text-xs text-gfa-grey">
                                     <div>{{ offer.payment_method }}</div>
                                     <div class="mt-2">
@@ -153,12 +166,17 @@
                                             </form>
                                         </div>
                                     {% else %}
+                                        {% if offer.quote_network != 'bitcoin' %}
+                                        <a href="{{ url_for('main.p2p_offer_details', offer_id=offer.id) }}" class="inline-block rounded bg-gfa-blue px-3 py-1 text-xs text-white hover:bg-blue-600">Review asset &amp; network</a>
+                                        {% else %}
                                         <form method="POST" action="{{ url_for('main.accept_p2p_offer', offer_id=offer.id) }}" onsubmit="return confirmP2PAccept(this)">
                                             <input type="hidden" name="offer_side" value="{{ offer.side }}">
-                                            <input type="hidden" name="offer_amount" value="{{ offer.amount_hns }}">
-                                            <input type="hidden" name="offer_price" value="{{ '%.12f'|format(offer.price_btc_per_hns) }}">
+                                            <input type="hidden" name="offer_amount" value="{{ format_decimal(offer.settlement_amount_hns) }}">
+                                            <input type="hidden" name="offer_price" value="{{ format_decimal(offer.quote_price) }}">
+                                            <input type="hidden" name="offer_total" value="{{ format_decimal(offer.quote_total) }}">
                                             <button type="submit" class="bg-gfa-blue text-white text-xs px-3 py-1 rounded hover:bg-blue-600">{{ context.action_label }}</button>
                                         </form>
+                                        {% endif %}
                                         <a href="{{ url_for('main.p2p_offer_details', offer_id=offer.id) }}" class="mt-2 inline-block text-xs text-gfa-light hover:text-white">View shareable offer</a>
                                     {% endif %}
                                 </td>
@@ -192,9 +210,9 @@
                     <tbody>
                         {% for trade in my_trades %}
                         <tr class="border-b border-gfa-grey/10 hover:bg-white/5">
-                            <td class="p-2 whitespace-nowrap">#{{ trade.id }} / Offer #{{ trade.offer_id }}</td>
+                            <td class="p-2 whitespace-nowrap">#{{ trade.id }} / Offer #{{ trade.offer_id }}<span class="block text-xs text-gfa-light">{{ trade.payment_asset.label }}</span></td>
                             <td class="p-2 whitespace-nowrap">
-                                {% if trade.offer.side == 'sell' %}
+                                {% if trade.side == 'sell' %}
                                     {% if trade.creator_id == session.get('user_id') %}
                                         Alice
                                     {% else %}
@@ -250,7 +268,41 @@
 </div>
 
 <script>
-    const p2pMarketPrice = parseFloat("{{ '%.12f'|format(current_price) }}");
+    const p2pMarketPrice = {{ format_decimal(current_price)|tojson }};
+    const p2pPaymentAssets = {{ payment_assets|tojson }};
+
+    function selectedPaymentAsset() {
+        return p2pPaymentAssets.find(asset => asset.id === document.getElementById('p2p-payment-asset').value) || p2pPaymentAssets[0];
+    }
+
+    function updateP2PPaymentAsset(clearPrice = false) {
+        const asset = selectedPaymentAsset();
+        const isBitcoin = asset.id === 'btc-bitcoin';
+        document.getElementById('p2p-price-label').textContent = `Price (${asset.symbol} per HNS)`;
+        document.getElementById('p2p-btc-reference').classList.toggle('hidden', !isBitcoin);
+        document.getElementById('p2p-price-help').textContent = isBitcoin
+            ? 'Set your own rate. The BTC reference is indicative, not an executable price.'
+            : `Enter your own ${asset.symbol} price per HNS. No live conversion or automatic bridge is provided.`;
+        const summary = document.getElementById('p2p-network-summary');
+        summary.replaceChildren();
+        const network = document.createElement('p');
+        network.className = 'font-bold text-white';
+        network.textContent = `${asset.label}${asset.chain_id ? ` · Chain ID ${asset.chain_id}` : ''}`;
+        summary.append(network);
+        if (asset.contract) {
+            const contract = document.createElement('p');
+            contract.className = 'mt-2 break-all font-mono text-xs';
+            contract.textContent = `Token contract (not a receiving address): ${asset.contract}`;
+            summary.append(contract);
+        }
+        const warning = document.createElement('p');
+        warning.className = 'mt-2 text-xs';
+        warning.textContent = `Sender needs ${asset.gas_asset || asset.symbol} for network fees, in addition to the payment.${asset.chain_id ? ' The same 0x address on another network is not the same payment route.' : ''}`;
+        summary.append(warning);
+        if (clearPrice) document.getElementById('p2p-price').value = isBitcoin ? p2pMarketPrice : '';
+        document.getElementById('p2p-price').placeholder = isBitcoin ? p2pMarketPrice : `${asset.symbol} per HNS`;
+        updateP2PTotal();
+    }
 
     function setP2PAmount(value) {
         if (!document.getElementById('p2p-amount')) return;
@@ -260,23 +312,42 @@
 
     function setP2PPriceToMarket() {
         if (!document.getElementById('p2p-price')) return;
-        document.getElementById('p2p-price').value = p2pMarketPrice.toFixed(12);
+        if (selectedPaymentAsset().id !== 'btc-bitcoin') return;
+        document.getElementById('p2p-price').value = p2pMarketPrice;
         updateP2PTotal();
     }
 
-    function adjustP2PPrice(percent) {
-        if (!document.getElementById('p2p-price')) return;
-        const adjusted = p2pMarketPrice * (1 + (percent / 100));
-        document.getElementById('p2p-price').value = adjusted.toFixed(12);
-        updateP2PTotal();
+    function decimalParts(value) {
+        if (!/^\d+(\.\d+)?$/.test(value) || value.length > 100) return null;
+        const [whole, fraction = ''] = value.split('.');
+        return { units: BigInt(whole + fraction), scale: fraction.length };
+    }
+
+    function exactTransferTotal(amountText, priceText, decimals) {
+        const amount = decimalParts(amountText.trim());
+        const price = decimalParts(priceText.trim());
+        if (!amount || !price || amount.units <= 0n || price.units <= 0n) return null;
+        const product = amount.units * price.units;
+        const scale = amount.scale + price.scale;
+        let units;
+        if (scale > decimals) {
+            const divisor = 10n ** BigInt(scale - decimals);
+            units = (product + divisor / 2n) / divisor;
+        } else {
+            units = product * 10n ** BigInt(decimals - scale);
+        }
+        if (units <= 0n) return null;
+        const padded = units.toString().padStart(decimals + 1, '0');
+        if (decimals === 0) return padded;
+        const fraction = padded.slice(-decimals).replace(/0+$/, '');
+        return padded.slice(0, -decimals) + (fraction ? '.' + fraction : '');
     }
 
     function updateP2PTotal() {
         if (!document.getElementById('p2p-amount')) return;
-        const amount = parseFloat(document.getElementById('p2p-amount').value) || 0;
-        const price = parseFloat(document.getElementById('p2p-price').value) || 0;
-        const total = amount * price;
-        document.getElementById('p2p-total-btc').textContent = total.toFixed(12) + ' BTC';
+        const asset = selectedPaymentAsset();
+        const total = exactTransferTotal(document.getElementById('p2p-amount').value, document.getElementById('p2p-price').value, asset.decimals);
+        document.getElementById('p2p-total-btc').textContent = total === null ? 'Enter amount and price' : `${total} ${asset.symbol}`;
     }
 
     function updateP2PGemsBond() {
@@ -298,39 +369,47 @@
         const side = (form.querySelector('[name="offer_side"]')?.value || '').toUpperCase();
         const amount = form.querySelector('[name="offer_amount"]')?.value || 'the listed';
         const price = form.querySelector('[name="offer_price"]')?.value || 'the listed price';
+        const total = form.querySelector('[name="offer_total"]')?.value || 'the listed total';
 
         return window.confirm(
             `Open a P2P trade room for this ${side} offer?\n\n` +
             `Amount: ${amount} HNS\n` +
-            `Price: ${price} BTC/HNS\n\n` +
-            'This will match the offer and notify both sides in a shared room. Do not move BTC or HNS until you coordinate the next step there.'
+            `Price: ${price} BTC/HNS\nTotal: ${total} BTC on Bitcoin (network fees additional)\n\n` +
+            'This will match the offer and open a shared room. Do not move BTC or HNS until you coordinate the next step there.'
         );
     }
 
     function reuseLastP2PListing() {
         if (!document.getElementById('p2p-offer-form')) return;
-        const saved = localStorage.getItem('liquiditySpotLastP2PListing');
-        if (!saved) return;
-        const data = JSON.parse(saved);
+        let data;
+        try { data = JSON.parse(localStorage.getItem('liquiditySpotLastP2PListing') || 'null'); } catch { return; }
+        if (!data) return;
+        const assetId = data.payment_asset || 'btc-bitcoin';
+        if (!p2pPaymentAssets.some(asset => asset.id === assetId)) {
+            window.alert('This saved payment route is no longer supported. Please create a new listing.');
+            return;
+        }
+        document.getElementById('p2p-payment-asset').value = assetId;
         document.getElementById('p2p-side').value = data.side || 'buy';
         document.getElementById('p2p-amount').value = data.amount_hns || '';
-        document.getElementById('p2p-price').value = data.price || p2pMarketPrice.toFixed(12);
+        document.getElementById('p2p-price').value = data.price || '';
         document.getElementById('p2p-payment-method').value = data.payment_method || 'Manual Wallet Transfer';
         document.getElementById('p2p-gems-stake').value = data.gems_stake || '';
         document.getElementById('p2p-notes').value = data.notes || '';
-        updateP2PTotal();
+        updateP2PPaymentAsset();
         updateP2PGemsBond();
     }
 
     function clearP2PListingForm() {
         if (!document.getElementById('p2p-offer-form')) return;
         document.getElementById('p2p-side').value = 'buy';
+        document.getElementById('p2p-payment-asset').value = 'btc-bitcoin';
         document.getElementById('p2p-amount').value = '';
-        document.getElementById('p2p-price').value = p2pMarketPrice.toFixed(12);
+        document.getElementById('p2p-price').value = p2pMarketPrice;
         document.getElementById('p2p-payment-method').value = 'Manual Wallet Transfer';
         document.getElementById('p2p-gems-stake').value = '';
         document.getElementById('p2p-notes').value = '';
-        updateP2PTotal();
+        updateP2PPaymentAsset();
         updateP2PGemsBond();
     }
 
@@ -338,19 +417,21 @@
     if (p2pOfferForm) {
         document.getElementById('p2p-amount').addEventListener('input', updateP2PTotal);
         document.getElementById('p2p-price').addEventListener('input', updateP2PTotal);
+        document.getElementById('p2p-payment-asset').addEventListener('change', () => updateP2PPaymentAsset(true));
         document.getElementById('p2p-gems-stake').addEventListener('input', updateP2PGemsBond);
         p2pOfferForm.addEventListener('submit', function() {
-            localStorage.setItem('liquiditySpotLastP2PListing', JSON.stringify({
+            try { localStorage.setItem('liquiditySpotLastP2PListing', JSON.stringify({
+                payment_asset: document.getElementById('p2p-payment-asset').value,
                 side: document.getElementById('p2p-side').value,
                 amount_hns: document.getElementById('p2p-amount').value,
                 price: document.getElementById('p2p-price').value,
                 payment_method: document.getElementById('p2p-payment-method').value,
                 gems_stake: document.getElementById('p2p-gems-stake').value,
                 notes: document.getElementById('p2p-notes').value
-            }));
+            })); } catch { /* Saving a convenience draft must not block posting. */ }
         });
 
-        updateP2PTotal();
+        updateP2PPaymentAsset();
         updateP2PGemsBond();
     }
 </script>

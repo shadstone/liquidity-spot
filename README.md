@@ -102,6 +102,51 @@ GFAVIP login adds:
 
 ## Safety Model
 
+### Network-aware manual P2P
+
+The P2P board supports BTC on Bitcoin; USDT on Ethereum mainnet; native USDC
+on Ethereum, Base and OP Mainnet; and native ETH on those three EVM networks.
+Each offer fixes an asset/network combination. No arbitrary contract entry,
+USDC.e, USDbC, WETH, or unapproved USDT L2 variant is accepted. Issuer/network
+sources and the review date are maintained in `services/payment_assets.py`.
+
+EVM takers must confirm the token and network before opening a room. Amounts
+and rates use exact decimal strings; totals round to the nearest atomic unit
+(ties up). Fees are additional: the sender pays gas on the selected network.
+Accepted rooms snapshot amount, rate, total, chain, contract and payment method.
+Transaction IDs are format-checked links, not proof of payment. Participants
+must independently verify recipient, contract, network, success and finality.
+There is no automatic bridging, custody, escrow or EVM atomic swap.
+
+The additive startup upgrade in `services/p2p_schema.py` adds nullable columns
+and snapshots legacy rooms without changing offer amounts/statuses. Back up
+the database before deploying and verify startup migration logs. Failed schema
+initialization prevents startup. Old app releases retain existing BTC columns
+but must not be used to serve new non-BTC offers: those have a zero legacy BTC
+placeholder and would be mislabeled. Disable new writes and coordinate a data-
+aware rollback instead of blindly rolling back the application after adoption.
+
+Release verification checklist:
+
+1. Create a provider volume snapshot and a private `pg_dump -Fc` export. Keep
+   credentials and database exports outside this repository; record a checksum.
+2. Restore the export into an isolated PostgreSQL instance. Compare row counts
+   and hashes of the original columns before and after migration, including
+   atomic tables. Run `ensure_payment_schema(engine)` twice and concurrently.
+3. Boot the application against the restored copy with external HTTP disabled;
+   check public pages, both channel API versions, legacy rooms and receipts.
+4. Apply the additive migration before app cutover. It uses transaction-local
+   10-second lock and 60-second statement timeouts; investigate a timeout rather
+   than repeatedly retrying against a busy database.
+5. Deploy, verify both workers boot and database-backed pages respond, and keep
+   the backup until the release is accepted. A restore rehearsal is not a restore
+   of production; never replace live data without reconciling intervening trades.
+
+`/api/channel` remains BTC-only for released Bob clients. New clients must
+explicitly request `/api/channel?version=2` and consume `quote_asset`,
+`quote_network`, `chain_id`, `token_contract`, `price_quote_per_hns` and
+`total_quote`; never interpret a null BTC rate as a BTC offer.
+
 Liquidity Spot is a coordination layer, not a custodian.
 
 The app should never ask for:
