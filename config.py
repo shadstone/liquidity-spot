@@ -3,9 +3,16 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-database_uri = os.environ.get('DATABASE_URL', 'sqlite:///app.db')
-if database_uri.startswith('postgres://'):
-    database_uri = database_uri.replace('postgres://', 'postgresql://', 1)
+def normalize_database_uri(uri):
+    # Use the driver installed in requirements.txt rather than SQLAlchemy's
+    # version-dependent default for bare PostgreSQL URLs.
+    for prefix in ('postgres://', 'postgresql://'):
+        if uri.startswith(prefix):
+            return 'postgresql+psycopg2://' + uri[len(prefix):]
+    return uri
+
+
+database_uri = normalize_database_uri(os.environ.get('DATABASE_URL', 'sqlite:///app.db'))
 
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
