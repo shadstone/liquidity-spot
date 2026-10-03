@@ -4,6 +4,7 @@ from functools import wraps
 from datetime import datetime
 from models import P2PTrade, Swap, SwapMessage, User, db
 from services.gems_service import GemsServiceError, credit_gems as wallet_credit_gems, is_wallet_service_configured
+from services.trade_events import emit_trade_event, lock_trade_bond_writes
 
 admin_bp = Blueprint('admin', __name__)
 
@@ -71,17 +72,27 @@ def credit_gems():
 @admin_required
 def resolve_p2p_trade(trade_id):
     trade = P2PTrade.query.get_or_404(trade_id)
+    bond_action = request.form.get('bond_action') or 'none'
+    if bond_action in ('refund_full', 'slash_full'):
+        # Lock both business rows before mutation, event locks and any credit.
+        lock_trade_bond_writes(trade)
     admin_review_status = request.form.get('admin_review_status') or trade.admin_review_status
     admin_resolution = request.form.get('admin_resolution') or trade.admin_resolution
     admin_notes = request.form.get('admin_notes')
     status = request.form.get('status') or trade.status
-    bond_action = request.form.get('bond_action') or 'none'
 
     trade.admin_review_status = admin_review_status
     trade.admin_resolution = admin_resolution
     trade.status = status
     if admin_notes is not None:
         trade.admin_notes = admin_notes
+
+    event_kind = 'p2p.dispute_opened' if status == 'disputed' else (
+        'p2p.trade_canceled' if status == 'canceled' else 'p2p.trade_updated'
+    )
+    # Admin resolutions are system events, never counterparty messages or notes.
+    # Complete journal validation, locking and inserts before a wallet credit.
+    emit_trade_event(trade, event_kind, None)
 
     if bond_action == 'refund_full' and trade.maker_bond_status == 'locked' and trade.maker_bond_amount > 0:
         if not is_wallet_service_configured():

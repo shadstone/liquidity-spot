@@ -21,6 +21,7 @@ from services.http_client import get as http_get
 from services.payment_assets import (
     get_payment_asset, parse_offer_amounts, make_terms_snapshot, format_decimal,
 )
+from services.trade_events import emit_trade_event, lock_trade_bond_writes, lock_trade_message_writes
 
 main_bp = Blueprint('main', __name__)
 SWAP_STALE_CANCEL_HOURS = 24
@@ -80,9 +81,15 @@ def cancel_before_payment(id, kind):
     if not changed:
         db.session.rollback()
         return 'This room is no longer eligible. Reload it; if funds were sent or the state is uncertain, use messages or request review.', 409
+    # The successful conditional UPDATE holds the trade row lock before any
+    # message ID is allocated, preserving the forward room-message cursor.
     message_model = P2PTradeMessage if kind == 'p2p' else SwapMessage
     parent = {'trade_id': id} if kind == 'p2p' else {'swap_id': id}
     db.session.add(message_model(**parent, user_id=session['user_id'], message=note))
+    if kind == 'p2p':
+        # The conditional update bypassed the identity map; journal committed state.
+        db.session.refresh(record)
+        emit_trade_event(record, 'p2p.trade_canceled', session['user_id'])
     db.session.commit()
     flash('Trade canceled and moved out of active trades. Other listings are unchanged. Any locked Gems bond remains subject to review.', 'success')
     return redirect(url_for('main.dashboard'))
@@ -1486,6 +1493,7 @@ def accept_p2p_offer(offer_id):
         user_id=user.id,
         last_viewed_at=datetime.utcnow()
     ))
+    emit_trade_event(trade, 'p2p.offer_accepted', user.id)
     db.session.commit()
 
     flash('P2P trade room created.', 'success')
@@ -1672,6 +1680,10 @@ def update_p2p_trade(trade_id):
 
     trade.last_actor_user_id = session['user_id']
 
+    event_kind = 'p2p.dispute_opened' if trade.status == 'disputed' else (
+        'p2p.trade_canceled' if trade.status == 'canceled' else 'p2p.trade_updated'
+    )
+    emit_trade_event(trade, event_kind, session['user_id'])
     db.session.commit()
     flash('P2P trade updated.', 'success')
     return redirect(url_for('main.p2p_trade_room', trade_id=trade.id))
@@ -1690,12 +1702,16 @@ def add_p2p_trade_message(trade_id):
         flash('Message cannot be empty.', 'error')
         return redirect(url_for('main.p2p_trade_room', trade_id=trade.id))
 
-    db.session.add(P2PTradeMessage(
+    lock_trade_message_writes(trade)
+    message_record = P2PTradeMessage(
         trade_id=trade.id,
         user_id=session['user_id'],
         message=message
-    ))
+    )
+    db.session.add(message_record)
     trade.last_actor_user_id = session['user_id']
+    db.session.flush()
+    emit_trade_event(trade, 'p2p.message_added', session['user_id'], message_id=message_record.id)
     db.session.commit()
 
     flash('Message added.', 'success')
@@ -1710,6 +1726,9 @@ def p2p_trade_action(trade_id):
         flash('You do not have permission to update this trade.', 'error')
         return redirect(url_for('main.p2p'))
 
+    # Action notes share the forward message cursor with ordinary room chat.
+    # Refresh under the writer lock before checking or changing room state.
+    lock_trade_message_writes(trade)
     if trade.status == 'canceled':
         return 'This trade is canceled. Start a new trade instead of reopening it.', 409
 
@@ -1730,6 +1749,11 @@ def p2p_trade_action(trade_id):
         flash('Unknown P2P action.', 'error')
         return redirect(url_for('main.p2p_trade_room', trade_id=trade.id))
 
+    if action == 'mark_completed':
+        # A refund changes both trade and offer. Take all row locks before the
+        # journal's owner locks, and before an irreversible wallet credit.
+        lock_trade_bond_writes(trade)
+
     status, milestone, default_note = action_map[action]
     trade.status = status
     trade.milestone = milestone
@@ -1745,6 +1769,12 @@ def p2p_trade_action(trade_id):
             user_id=session['user_id'],
             message=f'[{action}] {note}'
         ))
+
+    event_kind = 'p2p.dispute_opened' if status == 'disputed' else (
+        'p2p.trade_canceled' if status == 'canceled' else 'p2p.trade_updated'
+    )
+    # Journal validation, locking and inserts must succeed before wallet credit.
+    emit_trade_event(trade, event_kind, session['user_id'])
 
     if action == 'mark_completed':
         refunded, refund_error = _refund_maker_bond(

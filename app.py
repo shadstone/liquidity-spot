@@ -31,13 +31,13 @@ def create_app(config_name='default'):
     app.register_blueprint(agents_bp)
 
     @app.before_request
-    def enforce_draft_credential_boundary():
-        # Existing public guest forms must not silently ignore a draft token
+    def enforce_agent_credential_boundary():
+        # Existing public guest forms must not silently ignore a scoped token
         # and publish as a newly-created guest. This is not global bot blocking.
         scheme, _, credential = request.headers.get('Authorization', '').partition(' ')
         if (scheme.lower() == 'bearer' and credential.strip().lower().startswith('ls_agent_')
                 and not request.path.startswith('/api/agent/v1/')):
-            response = jsonify({'error': 'Draft-only credentials are accepted only by /api/agent/v1/ endpoints.'})
+            response = jsonify({'error': 'Scoped agent credentials are accepted only by /api/agent/v1/ endpoints.'})
             response.status_code = 403
             response.headers['Cache-Control'] = 'no-store, private'
             return response

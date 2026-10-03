@@ -1,4 +1,4 @@
-"""Owner-scoped, draft-only automation. No trading or wallet permissions."""
+"""Owner-scoped draft preparation and opt-in read access. No trading permissions."""
 from datetime import datetime, timedelta
 import hashlib
 import json
@@ -11,6 +11,22 @@ from services.payment_assets import get_payment_asset, parse_offer_amounts, form
 
 
 SCOPE = 'drafts:read drafts:write'
+PROFILES = {
+    'offer-drafts': {
+        'label': 'Offer drafts',
+        'scopes': ['drafts:read', 'drafts:write'],
+    },
+    'trade-assistant': {
+        'label': 'Trade assistant (read-only)',
+        'scopes': ['events:read', 'trades:read'],
+        'optional_scope': 'trade_messages:read',
+    },
+}
+VALID_SCOPE_SETS = (
+    frozenset(PROFILES['offer-drafts']['scopes']),
+    frozenset(PROFILES['trade-assistant']['scopes']),
+    frozenset([*PROFILES['trade-assistant']['scopes'], 'trade_messages:read']),
+)
 LIMITS = {'pending': 50, 'hourly': 100, 'body_bytes': 8192,
           'connections': 5, 'token_days': 7, 'connections_hourly': 20}
 TOKEN_PATTERN = re.compile(r'ls_agent_[A-Za-z0-9_-]{43}')
@@ -33,6 +49,14 @@ class AgentConnection(db.Model):
     @property
     def is_active(self):
         return self.revoked_at is None and self.expires_at > datetime.utcnow()
+
+    @property
+    def scope_list(self):
+        return self.scope.split()
+
+    @property
+    def profile_id(self):
+        return 'offer-drafts' if set(self.scope_list) == set(PROFILES['offer-drafts']['scopes']) else 'trade-assistant'
 
 
 class AgentDraft(db.Model):
@@ -77,7 +101,16 @@ def lock_owner(owner_id):
     return User.query.filter_by(id=owner_id).with_for_update().first()
 
 
-def issue_connection(owner_id, label):
+def issue_connection(owner_id, label, profile='offer-drafts', include_messages=False):
+    if profile not in PROFILES:
+        raise WorkspaceError('Choose an available agent permission profile.')
+    if type(include_messages) is not bool:
+        raise WorkspaceError('Message access requires an explicit yes/no choice.')
+    if include_messages and profile != 'trade-assistant':
+        raise WorkspaceError('Message access is only available for the trade-assistant profile.')
+    scopes = list(PROFILES[profile]['scopes'])
+    if include_messages:
+        scopes.append('trade_messages:read')
     if not isinstance(label, str) or not 1 <= len(label.strip()) <= 80:
         raise WorkspaceError('Give the connection a name of 1–80 characters.')
     if any(ord(char) < 32 or ord(char) == 127 for char in label):
@@ -98,21 +131,29 @@ def issue_connection(owner_id, label):
         raise WorkspaceError('Connection creation limit reached. Try again in an hour.', 429)
     raw_token = 'ls_agent_' + secrets.token_urlsafe(32)
     connection = AgentConnection(owner_id=owner_id, label=label.strip(), token_hash=digest_token(raw_token),
-                                 scope=SCOPE, created_at=now, expires_at=now + timedelta(days=LIMITS['token_days']))
+                                 scope=' '.join(scopes), created_at=now, expires_at=now + timedelta(days=LIMITS['token_days']))
     db.session.add(connection)
     db.session.flush()
     return connection, raw_token
 
 
-def authenticate_bearer(header):
+def require_scopes(connection, required_scopes):
+    if isinstance(required_scopes, str):
+        required_scopes = required_scopes.split()
+    if not set(required_scopes or ()).issubset(connection.scope_list):
+        raise WorkspaceError('This credential does not grant the required permission.', 403)
+
+
+def authenticate_bearer(header, required_scopes=None):
     if not isinstance(header, str) or len(header) > 100:
-        raise WorkspaceError('A valid draft-only Bearer credential is required.', 401)
+        raise WorkspaceError('A valid scoped agent Bearer credential is required.', 401)
     parts = header.split(' ')
     if len(parts) != 2 or parts[0].lower() != 'bearer' or not TOKEN_PATTERN.fullmatch(parts[1]):
-        raise WorkspaceError('A valid draft-only Bearer credential is required.', 401)
+        raise WorkspaceError('A valid scoped agent Bearer credential is required.', 401)
     connection = AgentConnection.query.filter_by(token_hash=digest_token(parts[1])).first()
-    if not connection or not connection.is_active or connection.scope != SCOPE:
-        raise WorkspaceError('A valid draft-only Bearer credential is required.', 401)
+    if not connection or not connection.is_active or frozenset(connection.scope_list) not in VALID_SCOPE_SETS:
+        raise WorkspaceError('A valid scoped agent Bearer credential is required.', 401)
+    require_scopes(connection, required_scopes)
     return connection
 
 
@@ -156,8 +197,9 @@ def create_draft(connection, key, payload):
         raise WorkspaceError('A valid draft-only Bearer credential is required.', 401)
     # Revocation and create share the owner lock; recheck after waiting for it.
     db.session.refresh(connection)
-    if not connection.is_active or connection.scope != SCOPE:
+    if not connection.is_active or frozenset(connection.scope_list) not in VALID_SCOPE_SETS:
         raise WorkspaceError('A valid draft-only Bearer credential is required.', 401)
+    require_scopes(connection, ['drafts:write'])
     previous = AgentDraft.query.filter_by(connection_id=connection.id, idempotency_key=key).first()
     if previous:
         if previous.payload_hash != payload_hash:
