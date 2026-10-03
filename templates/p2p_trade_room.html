@@ -5,7 +5,7 @@
 {% set current_user_id = session.get('user_id') %}
 {% set counterparty_user = trade.counterparty if current_user_id == trade.creator_id else trade.creator %}
 {% set room_locked = trade.status in ['completed', 'canceled', 'no_show'] %}
-{% set total_btc = trade.offer.amount_hns * trade.offer.price_btc_per_hns %}
+{% set payment_asset = trade.payment_asset %}
 {% set progress_steps = [
     ('matched', 'Agree'),
     ('payment_sent', 'First transfer'),
@@ -36,7 +36,7 @@
                     </div>
                     <h1 class="mt-2 text-2xl font-bold text-white sm:text-3xl">Trade with {{ counterparty_user.username }}</h1>
                     <p class="mt-2 max-w-3xl text-sm leading-relaxed text-gfa-grey sm:text-base">
-                        One shared workspace for the plan, messages, transaction IDs, and final record. Liquidity.spot coordinates this trade but never holds your HNS or BTC.
+                        One shared workspace for the plan, messages, transaction IDs, and final record. Liquidity.spot coordinates this trade but never holds your HNS or {{ trade.quote_asset }}.
                     </p>
                 </div>
                 <details class="shrink-0 text-sm">
@@ -60,23 +60,27 @@
             <div class="p-5">
                 <p class="text-xs font-bold uppercase tracking-wider text-gfa-grey">You send</p>
                 {% if room_guide.you_send_asset == 'HNS' %}
-                    <p class="mt-1 text-lg font-bold text-white">{{ trade.offer.amount_hns }} HNS</p>
+                    <p class="mt-1 text-lg font-bold text-white">{{ format_decimal(trade.amount_hns) }} HNS</p>
                 {% else %}
-                    <p class="mt-1 break-all text-lg font-bold text-white">{{ '%.12f'|format(total_btc) }} BTC</p>
+                    <p class="mt-1 break-all text-lg font-bold text-white">{{ format_decimal(trade.quote_total) }} {{ trade.quote_asset }}</p>
                 {% endif %}
+                <p class="mt-1 text-sm font-bold text-gfa-light">{{ 'Handshake mainnet' if room_guide.you_send_asset == 'HNS' else payment_asset.network_label }}</p>
                 <p class="mt-1 text-sm text-gfa-grey">to {{ counterparty_user.username }}</p>
             </div>
             <div class="p-5">
                 <p class="text-xs font-bold uppercase tracking-wider text-gfa-grey">You receive</p>
                 {% if room_guide.you_receive_asset == 'HNS' %}
-                    <p class="mt-1 text-lg font-bold text-white">{{ trade.offer.amount_hns }} HNS</p>
+                    <p class="mt-1 text-lg font-bold text-white">{{ format_decimal(trade.amount_hns) }} HNS</p>
                 {% else %}
-                    <p class="mt-1 break-all text-lg font-bold text-white">{{ '%.12f'|format(total_btc) }} BTC</p>
+                    <p class="mt-1 break-all text-lg font-bold text-white">{{ format_decimal(trade.quote_total) }} {{ trade.quote_asset }}</p>
                 {% endif %}
+                <p class="mt-1 text-sm font-bold text-gfa-light">{{ 'Handshake mainnet' if room_guide.you_receive_asset == 'HNS' else payment_asset.network_label }}</p>
                 <p class="mt-1 text-sm text-gfa-grey">from {{ counterparty_user.username }}</p>
             </div>
         </div>
     </header>
+
+    {% include '_p2p_payment_asset.html' %}
 
     <section class="rounded-2xl border {{ 'border-red-400/35 bg-red-950/25' if trade.status in ['disputed', 'canceled', 'no_show'] else 'border-gfa-light/45 bg-gfa-light/10' }} p-5 md:p-7" aria-labelledby="next-step-title">
         <div class="grid gap-5 lg:grid-cols-[1fr_300px] lg:items-center">
@@ -152,7 +156,7 @@
                 {% else %}
                     <div class="rounded-xl border border-dashed border-gfa-light/25 bg-gfa-light/5 p-6">
                         <p class="font-bold text-white">Start with the exact trade plan.</p>
-                        <p class="mt-1 text-sm leading-relaxed text-gfa-grey">Confirm addresses, amounts, who sends first, and the number of confirmations with {{ counterparty_user.username }} before either person sends funds.</p>
+                        <p class="mt-1 text-sm leading-relaxed text-gfa-grey">Confirm addresses, amounts, {{ payment_asset.network_label }}{% if payment_asset.contract %} and the token contract{% endif %}, who sends first, and the number of confirmations with {{ counterparty_user.username }} before either person sends funds.</p>
                     </div>
                 {% endif %}
             </div>
@@ -166,7 +170,7 @@
                 <textarea id="message" name="message" rows="4" required class="w-full rounded-xl border border-gfa-grey/30 bg-black/50 p-3 text-white placeholder:text-gfa-grey/70 focus:border-gfa-light focus:outline-none focus:ring-1 focus:ring-gfa-light" placeholder="Confirm a detail, share a public TXID, or explain what you are waiting for."></textarea>
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div class="flex flex-wrap gap-2" aria-label="Message starters">
-                        <button type="button" data-message-starter="Let's confirm the exact HNS and BTC receiving addresses before sending." class="rounded-full border border-gfa-grey/20 px-3 py-1.5 text-xs text-gfa-grey hover:border-gfa-light/40 hover:text-white">Confirm addresses</button>
+                        <button type="button" data-message-starter="Let's confirm the exact HNS (Handshake) and {{ trade.quote_asset }} ({{ payment_asset.network_label }}) receiving addresses{% if payment_asset.contract %} and token contract{% endif %} before sending." class="rounded-full border border-gfa-grey/20 px-3 py-1.5 text-xs text-gfa-grey hover:border-gfa-light/40 hover:text-white">Confirm addresses &amp; network</button>
                         <button type="button" data-message-starter="Here is the public transaction ID: " class="rounded-full border border-gfa-grey/20 px-3 py-1.5 text-xs text-gfa-grey hover:border-gfa-light/40 hover:text-white">Share TXID</button>
                         <button type="button" data-message-starter="I am waiting for " class="rounded-full border border-gfa-grey/20 px-3 py-1.5 text-xs text-gfa-grey hover:border-gfa-light/40 hover:text-white">I’m waiting for…</button>
                     </div>
@@ -182,13 +186,14 @@
             <section class="rounded-2xl border border-gfa-grey/20 bg-black/30 p-5">
                 <h2 class="text-lg font-bold text-white">Deal summary</h2>
                 <dl class="mt-4 space-y-3 text-sm">
-                    <div class="flex justify-between gap-4"><dt class="text-gfa-grey">HNS amount</dt><dd class="text-right font-bold text-white">{{ trade.offer.amount_hns }} HNS</dd></div>
-                    <div class="flex justify-between gap-4"><dt class="text-gfa-grey">BTC total</dt><dd class="break-all text-right font-mono text-white">{{ '%.12f'|format(total_btc) }}</dd></div>
-                    <div class="flex justify-between gap-4"><dt class="text-gfa-grey">Rate</dt><dd class="break-all text-right font-mono text-white">{{ '%.12f'|format(trade.offer.price_btc_per_hns) }} BTC/HNS</dd></div>
-                    <div class="flex justify-between gap-4"><dt class="text-gfa-grey">Method</dt><dd class="text-right text-white">{{ trade.offer.payment_method }}</dd></div>
+                    <div class="flex justify-between gap-4"><dt class="text-gfa-grey">HNS amount</dt><dd class="text-right font-bold text-white">{{ format_decimal(trade.amount_hns) }} HNS</dd></div>
+                    <div class="flex justify-between gap-4"><dt class="text-gfa-grey">{{ trade.quote_asset }} total</dt><dd class="break-all text-right font-mono text-white">{{ format_decimal(trade.quote_total) }}</dd></div>
+                    <div class="flex justify-between gap-4"><dt class="text-gfa-grey">Payment network</dt><dd class="text-right font-bold text-gfa-light">{{ payment_asset.network_label }}</dd></div>
+                    <div class="flex justify-between gap-4"><dt class="text-gfa-grey">Rate</dt><dd class="break-all text-right font-mono text-white">{{ format_decimal(trade.quote_price) }} {{ trade.quote_asset }}/HNS</dd></div>
+                    <div class="flex justify-between gap-4"><dt class="text-gfa-grey">Method</dt><dd class="text-right text-white">{{ trade.payment_method }}</dd></div>
                     <div class="flex justify-between gap-4"><dt class="text-gfa-grey">Maker bond</dt><dd class="text-right text-white">{{ trade.maker_bond_amount }} Gems · {{ trade.maker_bond_status|replace('_', ' ') }}</dd></div>
                 </dl>
-                <p class="mt-4 rounded-lg border border-yellow-500/25 bg-yellow-950/20 p-3 text-xs leading-relaxed text-yellow-100">Confirm the whole-satoshi BTC total and both receiving addresses in chat. The quoted decimal is not a substitute for checking your wallet.</p>
+                <p class="mt-4 rounded-lg border border-yellow-500/25 bg-yellow-950/20 p-3 text-xs leading-relaxed text-yellow-100">Agreed terms are fixed for this room. Total rounded to token precision; sender pays network fees separately. Confirm both receiving addresses and the payment network in chat, then verify them in your wallet.</p>
                 {% if trade.offer.notes %}
                 <div class="mt-4 border-t border-gfa-grey/10 pt-4">
                     <p class="text-xs font-bold uppercase tracking-wider text-gfa-grey">Original offer note</p>
@@ -202,11 +207,11 @@
                 <div class="mt-4 space-y-3 text-sm">
                     <div class="rounded-lg border {{ 'border-gfa-light/35 bg-gfa-light/10' if current_role == 'Alice' else 'border-gfa-grey/15 bg-black/25' }} p-3">
                         <div class="flex items-center justify-between gap-3"><p class="font-bold text-white">{{ alice_user.username }}</p><span class="text-xs text-gfa-grey">Alice</span></div>
-                        <p class="mt-1 text-gfa-grey">HNS seller · sends HNS, receives BTC{% if current_role == 'Alice' %} · <strong class="text-gfa-light">you</strong>{% endif %}</p>
+                        <p class="mt-1 text-gfa-grey">HNS seller · sends HNS, receives {{ trade.quote_asset }}{% if current_role == 'Alice' %} · <strong class="text-gfa-light">you</strong>{% endif %}</p>
                     </div>
                     <div class="rounded-lg border {{ 'border-gfa-light/35 bg-gfa-light/10' if current_role == 'Bob' else 'border-gfa-grey/15 bg-black/25' }} p-3">
                         <div class="flex items-center justify-between gap-3"><p class="font-bold text-white">{{ bob_user.username }}</p><span class="text-xs text-gfa-grey">Bob</span></div>
-                        <p class="mt-1 text-gfa-grey">HNS buyer · sends BTC, receives HNS{% if current_role == 'Bob' %} · <strong class="text-gfa-light">you</strong>{% endif %}</p>
+                        <p class="mt-1 text-gfa-grey">HNS buyer · sends {{ trade.quote_asset }}, receives HNS{% if current_role == 'Bob' %} · <strong class="text-gfa-light">you</strong>{% endif %}</p>
                     </div>
                 </div>
             </section>
@@ -220,10 +225,11 @@
                 </div>
                 {% endif %}
                 <dl class="mt-4 space-y-4 text-sm">
-                    <div><dt class="text-gfa-grey">Alice / HNS lock TXID</dt><dd class="mt-1 break-all text-white">{{ trade.alice_lock_txid or 'Not added yet' }}</dd></div>
-                    <div><dt class="text-gfa-grey">Bob / BTC lock TXID</dt><dd class="mt-1 break-all text-white">{{ trade.bob_lock_txid or 'Not added yet' }}</dd></div>
+                    <div><dt class="text-gfa-grey">Alice / HNS transfer TXID</dt><dd class="mt-1 break-all text-white">{{ trade.alice_lock_txid or 'Not added yet' }}</dd></div>
+                    <div><dt class="text-gfa-grey">Bob / {{ trade.quote_asset }} transfer TXID · {{ payment_asset.network_label }}</dt><dd class="mt-1 break-all text-white">{{ trade.bob_lock_txid or 'Not added yet' }}</dd>{% set payment_tx_url = transaction_url(payment_asset, trade.bob_lock_txid) %}{% if payment_tx_url %}<a href="{{ payment_tx_url }}" target="_blank" rel="noopener noreferrer" class="mt-1 inline-block text-xs text-gfa-light hover:text-white">Check on {{ payment_asset.network_label }} explorer ↗</a>{% endif %}</div>
                     <div class="flex justify-between gap-3"><dt class="text-gfa-grey">Room created</dt><dd class="text-right text-white">{{ trade.created_at.strftime('%Y-%m-%d %H:%M') }}</dd></div>
                 </dl>
+                <p class="mt-3 text-xs text-gfa-grey">TXIDs and milestones are participant-submitted records, not verified payment. Check recipient, asset contract, amount, success and confirmations independently.</p>
             </section>
         </aside>
     </div>
@@ -302,7 +308,7 @@
                         <div><label class="mb-1 block text-sm text-gfa-grey">Trade status</label><select name="status" class="w-full rounded border border-gfa-grey/30 bg-black/50 p-2 text-white">{% for option in ['matched', 'completed', 'canceled', 'disputed', 'no_show'] %}<option value="{{ option }}" {{ 'selected' if trade.status == option else '' }}>{{ option|replace('_', ' ') }}</option>{% endfor %}</select></div>
                     </div>
                     <div><label class="mb-1 block text-sm text-gfa-grey">Alice / HNS TXID</label><input type="text" name="alice_lock_txid" value="{{ trade.alice_lock_txid or '' }}" class="w-full rounded border border-gfa-grey/30 bg-black/50 p-2 text-white"></div>
-                    <div><label class="mb-1 block text-sm text-gfa-grey">Bob / BTC TXID</label><input type="text" name="bob_lock_txid" value="{{ trade.bob_lock_txid or '' }}" class="w-full rounded border border-gfa-grey/30 bg-black/50 p-2 text-white"></div>
+                    <div><label class="mb-1 block text-sm text-gfa-grey">Bob / {{ trade.quote_asset }} TXID · {{ payment_asset.network_label }}</label><input type="text" name="bob_lock_txid" value="{{ trade.bob_lock_txid or '' }}" class="w-full rounded border border-gfa-grey/30 bg-black/50 p-2 text-white"></div>
                     <div><label class="mb-1 block text-sm text-gfa-grey">Latest room note</label><textarea name="latest_note" rows="3" class="w-full rounded border border-gfa-grey/30 bg-black/50 p-2 text-white">{{ trade.latest_note or '' }}</textarea></div>
                     <button type="submit" class="w-full rounded bg-gfa-grey/20 py-2 font-bold text-white hover:bg-gfa-grey/30">Save manual correction</button>
                 </form>

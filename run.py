@@ -1,7 +1,7 @@
 import os
 from app import create_app
 from models import db
-from sqlalchemy import inspect, text
+from sqlalchemy import Numeric, inspect, text
 
 # Create app instance
 app = create_app(os.getenv('FLASK_ENV', 'default'))
@@ -160,18 +160,16 @@ def ensure_numeric_precision():
         return
 
     with db.engine.begin() as connection:
-        connection.execute(text(
-            "ALTER TABLE orders ALTER COLUMN amount_hns TYPE NUMERIC(24,8)"
-        ))
-        connection.execute(text(
-            "ALTER TABLE orders ALTER COLUMN price_btc_per_hns TYPE NUMERIC(24,12)"
-        ))
-        connection.execute(text(
-            "ALTER TABLE p2p_offers ALTER COLUMN amount_hns TYPE NUMERIC(24,8)"
-        ))
-        connection.execute(text(
-            "ALTER TABLE p2p_offers ALTER COLUMN price_btc_per_hns TYPE NUMERIC(24,12)"
-        ))
+        inspector = inspect(connection)
+        for table in ('orders', 'p2p_offers'):
+            column_types = {column['name']: column['type'] for column in inspector.get_columns(table)}
+            for column, scale in (('amount_hns', 8), ('price_btc_per_hns', 12)):
+                current_type = column_types[column]
+                if isinstance(current_type, Numeric) and current_type.precision == 24 and current_type.scale == scale:
+                    continue
+                connection.execute(text(
+                    f'ALTER TABLE {table} ALTER COLUMN {column} TYPE NUMERIC(24,{scale})'
+                ))
 
 def create_tables_tolerating_worker_race():
     """Create tables while tolerating concurrent startup workers."""
@@ -193,12 +191,16 @@ try:
         ensure_user_schema()
         ensure_p2p_offer_bond_schema()
         ensure_p2p_schema()
+        from services.p2p_schema import ensure_payment_schema
+        ensure_payment_schema(db.engine)
         ensure_p2p_feedback_schema()
         ensure_atomic_swap_schema()
         ensure_numeric_precision()
         print("Database tables created!", flush=True)
 except Exception as e:
     print(f"Error initializing database: {e}", flush=True)
+    # Do not serve new model queries against an incomplete schema.
+    raise
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8000))

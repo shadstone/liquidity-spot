@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 
-{% block title %}Offer #{{ offer.id }}: {{ offer.amount_hns }} HNS | Liquidity.spot{% endblock %}
+{% block title %}Offer #{{ offer.id }}: {{ format_decimal(offer.settlement_amount_hns) }} HNS | Liquidity.spot{% endblock %}
 
 {% block meta %}
-<meta name="description" content="{{ offer_context.waiting_label }} for a {{ offer.amount_hns }} HNS peer-to-peer trade on Liquidity.spot.">
-<meta property="og:title" content="{{ offer_context.waiting_label }}: {{ offer.amount_hns }} HNS">
+<meta name="description" content="{{ offer_context.waiting_label }} for a {{ format_decimal(offer.settlement_amount_hns) }} HNS peer-to-peer trade paid in {{ offer.payment_asset.label }} on Liquidity.spot.">
+<meta property="og:title" content="{{ offer_context.waiting_label }}: {{ format_decimal(offer.settlement_amount_hns) }} HNS · {{ offer.payment_asset.label }}">
 <meta property="og:description" content="{{ offer_context.counterparty_explanation }}">
 <meta property="og:type" content="website">
 <meta property="og:url" content="{{ share_url }}">
@@ -24,7 +24,7 @@
                 <p class="text-sm font-bold uppercase tracking-wide {{ 'text-yellow-200' if offer.status == 'open' else 'text-gfa-grey' }}">
                     {{ offer_context.waiting_label if offer.status == 'open' else 'Offer ' + offer.status }}
                 </p>
-                <h1 class="mt-2 text-3xl font-bold text-white md:text-4xl">{{ offer.amount_hns }} HNS</h1>
+                <h1 class="mt-2 text-3xl font-bold text-white md:text-4xl">{{ format_decimal(offer.settlement_amount_hns) }} HNS</h1>
                 <p class="mt-2 text-lg text-gfa-grey">Posted by {{ offer.creator.username }}, the {{ offer_context.creator_role }}.</p>
             </div>
             <span class="w-fit rounded-full px-3 py-1 text-sm font-bold {{ 'bg-gfa-light/20 text-gfa-light' if offer.status == 'open' else 'bg-gfa-grey/10 text-gfa-grey' }}">
@@ -42,7 +42,7 @@
         <dl class="mt-6 grid gap-4 rounded-lg border border-gfa-grey/15 bg-black/30 p-5 sm:grid-cols-2">
             <div>
                 <dt class="text-xs uppercase tracking-wide text-gfa-grey">Offer creator wants to</dt>
-                <dd class="mt-1 font-bold text-white">{{ 'Buy HNS with BTC' if offer.side == 'buy' else 'Sell HNS for BTC' }}</dd>
+                <dd class="mt-1 font-bold text-white">{{ 'Buy HNS with ' if offer.side == 'buy' else 'Sell HNS for ' }}{{ offer.quote_asset }}</dd>
             </div>
             <div>
                 <dt class="text-xs uppercase tracking-wide text-gfa-grey">Counterparty needed</dt>
@@ -50,12 +50,13 @@
             </div>
             <div>
                 <dt class="text-xs uppercase tracking-wide text-gfa-grey">Rate</dt>
-                <dd class="mt-1 font-mono text-white">{{ '%.12f'|format(offer.price_btc_per_hns) }} BTC/HNS</dd>
+                <dd class="mt-1 break-all font-mono text-white">{{ format_decimal(offer.quote_price) }} {{ offer.quote_asset }}/HNS</dd>
             </div>
             <div>
                 <dt class="text-xs uppercase tracking-wide text-gfa-grey">Quoted total</dt>
-                <dd class="mt-1 font-mono text-white">{{ '%.12f'|format(offer_context.total_btc) }} BTC</dd>
-                <p class="mt-1 text-xs text-gfa-grey">Approximately {{ '{:,}'.format(offer_context.total_sats|int) }} sats; confirm the whole-satoshi total in the trade room.</p>
+                <dd class="mt-1 break-all font-mono text-white">{{ format_decimal(offer.quote_total) }} {{ offer.quote_asset }}</dd>
+                {% if offer.quote_asset == 'BTC' %}<p class="mt-1 text-xs text-gfa-grey">Approximately {{ '{:,}'.format(offer_context.total_sats|int) }} sats; check the exact transfer total in your wallet.</p>{% endif %}
+                <p class="mt-1 text-xs text-gfa-grey">Total rounded to token precision; sender pays network fees separately.</p>
             </div>
             <div>
                 <dt class="text-xs uppercase tracking-wide text-gfa-grey">Settlement</dt>
@@ -69,6 +70,11 @@
                 </dd>
             </div>
         </dl>
+
+        <div class="mt-5">
+            {% set payment_asset = offer.payment_asset %}
+            {% include '_p2p_payment_asset.html' %}
+        </div>
 
         {% if offer.notes %}
         <div class="mt-6">
@@ -85,10 +91,16 @@
                 </div>
             {% elif offer.status == 'open' %}
                 <form method="POST" action="{{ url_for('main.accept_p2p_offer', offer_id=offer.id) }}" onsubmit="return window.confirm('Accept offer #{{ offer.id }} and open a shared trade room? Do not send funds until both sides confirm the next step there.')">
+                    {% if offer.quote_network != 'bitcoin' %}
+                    <label class="mb-4 flex items-start gap-3 rounded-lg border border-yellow-500/30 bg-yellow-950/20 p-4 text-sm text-yellow-100">
+                        <input type="checkbox" name="confirm_network" value="yes" required class="mt-1 h-4 w-4 shrink-0">
+                        <span>I can send or receive <strong>{{ offer.quote_asset }} on {{ offer.payment_asset.network_label }}</strong>{% if offer.payment_asset.contract %} using the exact token contract shown above{% endif %}. I understand this is a manual P2P trade without escrow or automatic bridging.</span>
+                    </label>
+                    {% endif %}
                     <button type="submit" class="w-full rounded-lg bg-gfa-light px-5 py-3 text-lg font-bold text-gfa-dark hover:bg-white">
                         {{ offer_context.action_label }}
                     </button>
-                    <p class="mt-2 text-center text-xs text-gfa-grey">Accepting creates a shared coordination room. It does not automatically move BTC or HNS.</p>
+                    <p class="mt-2 text-center text-xs text-gfa-grey">Accepting creates a shared coordination room and fixes its amount, rate, token, and network. It does not automatically move {{ offer.quote_asset }} or HNS.</p>
                 </form>
             {% elif trade and is_participant %}
                 <a href="{{ url_for('main.p2p_trade_room', trade_id=trade.id) }}" class="block w-full rounded-lg bg-gfa-light px-5 py-3 text-center text-lg font-bold text-gfa-dark hover:bg-white">Enter Trade Room</a>
@@ -113,7 +125,7 @@
     </section>
 
     <section class="rounded-lg border border-red-400/20 bg-red-950/20 p-4 text-sm text-red-100">
-        <strong>Trade safely:</strong> Liquidity.spot only introduces the two sides. Never share seed phrases, private keys, wallet passwords, or the guest recovery key. Confirm addresses and the whole-satoshi BTC amount in the trade room before sending.
+        <strong>Trade safely:</strong> Liquidity.spot only introduces the two sides. Never share seed phrases, private keys, wallet passwords, or the guest recovery key. Confirm both receiving addresses, the exact transfer amount, payment network, and token contract in the trade room before sending.
     </section>
 </div>
 
@@ -139,7 +151,7 @@
         shareOfferLink.addEventListener('click', async () => {
             try {
                 await navigator.share({
-                    title: '{{ offer_context.waiting_label }}: {{ offer.amount_hns }} HNS',
+                    title: {{ (offer_context.waiting_label ~ ': ' ~ format_decimal(offer.settlement_amount_hns) ~ ' HNS · ' ~ offer.payment_asset.label)|tojson }},
                     text: '{{ offer_context.action_label }} on Liquidity.spot',
                     url: offerShareUrl.value
                 });

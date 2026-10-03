@@ -18,6 +18,9 @@ from services.gems_service import (
 from services.chain_watchers import WatcherError, verify_bitcoin_tx, verify_hns_tx
 from services.swap_adapters import build_swap_intents
 from services.http_client import get as http_get
+from services.payment_assets import (
+    get_payment_asset, parse_offer_amounts, make_terms_snapshot, format_decimal,
+)
 
 main_bp = Blueprint('main', __name__)
 SWAP_STALE_CANCEL_HOURS = 24
@@ -331,36 +334,43 @@ def _external_url_for(endpoint, **values):
 
 
 def _p2p_offer_context(offer):
-    total_btc = Decimal(offer.amount_hns) * Decimal(offer.price_btc_per_hns)
-    total_sats = (total_btc * Decimal('100000000')).quantize(
-        Decimal('1'), rounding=ROUND_HALF_UP
-    )
+    quote_asset = offer.quote_asset
+    network_label = offer.payment_asset['network_label']
+    is_btc = quote_asset == 'BTC'
+    total_quote = offer.quote_total
+    context = {
+        'total_quote': total_quote,
+        'quote_asset': quote_asset,
+        'quote_network': offer.quote_network,
+        # Retain BTC-only context fields for older consumers, never label tokens BTC.
+        'total_btc': total_quote if is_btc else None,
+        'total_sats': (total_quote * Decimal('100000000')).quantize(
+            Decimal('1'), rounding=ROUND_HALF_UP
+        ) if is_btc else None,
+    }
 
     if offer.side == 'buy':
-        return {
+        return {**context,
             'creator_role': 'HNS buyer',
             'counterparty_role': 'HNS seller',
             'waiting_label': 'Waiting for an HNS seller',
             'action_label': 'Sell HNS to this buyer',
             'counterparty_explanation': (
-                'The offer creator has BTC and wants HNS. Another person with HNS '
-                'must accept this offer before a swap can begin.'
+                f'The offer creator has {quote_asset} on {network_label} and wants HNS. '
+                'Another person with HNS must accept this offer before a manual P2P trade can begin.'
             ),
-            'total_btc': total_btc,
-            'total_sats': total_sats,
         }
 
-    return {
+    return {**context,
         'creator_role': 'HNS seller',
         'counterparty_role': 'HNS buyer',
         'waiting_label': 'Waiting for an HNS buyer',
         'action_label': 'Buy HNS from this seller',
         'counterparty_explanation': (
-            'The offer creator has HNS and wants BTC. Another person with BTC '
-            'must accept this offer before a swap can begin.'
+            f'The offer creator has HNS and wants {quote_asset} on {network_label}. '
+            f'Another person with {quote_asset} on that network must accept this offer '
+            'before a manual P2P trade can begin.'
         ),
-        'total_btc': total_btc,
-        'total_sats': total_sats,
     }
 
 
@@ -506,7 +516,7 @@ def _refund_maker_bond(trade, reason, resolution='refunded'):
 
 
 def _p2p_trade_parties(trade):
-    if trade.offer.side == 'sell':
+    if trade.side == 'sell':
         alice_user = trade.creator
         bob_user = trade.counterparty
     else:
@@ -523,6 +533,7 @@ def _p2p_room_guide(trade, user_id):
     """Return plain-language, milestone-specific guidance for a P2P room."""
     alice_user, bob_user = _p2p_trade_parties(trade)
     is_alice = user_id == alice_user.id
+    quote_asset = trade.quote_asset
 
     milestone_guidance = {
         'matched': {
@@ -530,8 +541,10 @@ def _p2p_room_guide(trade, user_id):
             'eyebrow': 'Start here',
             'title': 'Confirm the trade plan together',
             'description': (
-                'Use the chat to confirm both wallet addresses, the exact whole-satoshi '
-                'BTC total, who will send first, and how many confirmations you will wait for.'
+                'Use the chat to confirm both wallet addresses, the exact '
+                f'{quote_asset} total on {trade.payment_asset["network_label"]}, who will send first, '
+                'and how many confirmations you will wait for. For tokens, verify the '
+                'contract below as well as the network. This room is not escrow or an atomic swap.'
             ),
             'action': 'mark_payment_sent',
             'action_label': 'Record first payment / lock sent',
@@ -543,7 +556,8 @@ def _p2p_room_guide(trade, user_id):
             'eyebrow': 'Next shared step',
             'title': 'Verify the first transfer',
             'description': (
-                'The receiving party should verify the address, amount, TXID, and agreed '
+                'The receiving party should verify the network, token contract where applicable, '
+                'address, amount, TXID, and agreed '
                 'confirmations. Ask in chat if anything does not match.'
             ),
             'action': 'mark_payment_received',
@@ -556,7 +570,7 @@ def _p2p_room_guide(trade, user_id):
             'eyebrow': 'Next shared step',
             'title': 'Send or release the other side',
             'description': (
-                'The party who still owes HNS or BTC should now complete their agreed transfer. '
+                f'The party who still owes HNS or {quote_asset} should now complete their agreed transfer. '
                 'Post its TXID or confirmation in the chat.'
             ),
             'action': 'mark_released',
@@ -569,7 +583,7 @@ def _p2p_room_guide(trade, user_id):
             'eyebrow': 'Final check',
             'title': 'Verify both sides are settled',
             'description': (
-                'Both parties should verify that the expected HNS and BTC arrived. Once there '
+                f'Both parties should verify that the expected HNS and {quote_asset} arrived. Once there '
                 'is nothing left to send or resolve, close the room as complete.'
             ),
             'action': 'mark_completed',
@@ -595,8 +609,8 @@ def _p2p_room_guide(trade, user_id):
         'role_code': 'Alice' if is_alice else 'Bob',
         'counterparty_role_name': 'HNS buyer' if is_alice else 'HNS seller',
         'counterparty_role_code': 'Bob' if is_alice else 'Alice',
-        'you_send_asset': 'HNS' if is_alice else 'BTC',
-        'you_receive_asset': 'BTC' if is_alice else 'HNS',
+        'you_send_asset': 'HNS' if is_alice else quote_asset,
+        'you_receive_asset': quote_asset if is_alice else 'HNS',
     })
 
     status_overrides = {
@@ -662,7 +676,7 @@ def _build_p2p_trade_receipt_text(trade, requested_by=None):
     requested_at = datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')
     created_at = trade.created_at.strftime('%Y-%m-%d %H:%M UTC') if trade.created_at else 'Unknown'
     updated_at = trade.updated_at.strftime('%Y-%m-%d %H:%M UTC') if trade.updated_at else 'Unknown'
-    total_btc = Decimal(trade.offer.amount_hns) * Decimal(trade.offer.price_btc_per_hns)
+    asset = trade.payment_asset
 
     lines = [
         'Liquidity.spot P2P Trade Receipt',
@@ -675,17 +689,23 @@ def _build_p2p_trade_receipt_text(trade, requested_by=None):
         'Parties',
         '-' * 36,
         f'Alice (HNS seller): {alice_user.username}',
-        f'Bob (HNS buyer / BTC seller): {bob_user.username}',
+        f'Bob (HNS buyer / {trade.quote_asset} payer): {bob_user.username}',
         f'Offer creator: {trade.creator.username}',
         f'Counterparty: {trade.counterparty.username}',
         '',
         'Trade Terms',
         '-' * 36,
-        f'Side: {trade.offer.side.upper()} HNS',
-        f'Amount: {trade.offer.amount_hns} HNS',
-        f'Price: {trade.offer.price_btc_per_hns} BTC/HNS',
-        f'Total BTC: {total_btc:.12f}',
-        f'Payment method: {trade.offer.payment_method}',
+        f'Side: {trade.side.upper()} HNS',
+        f'Amount: {format_decimal(trade.amount_hns)} HNS on Handshake',
+        f'Price: {format_decimal(trade.quote_price)} {trade.quote_asset}/HNS',
+        f'Total {trade.quote_asset}: {format_decimal(trade.quote_total)}',
+        f'Payment network: {asset["network_label"]}',
+        f'Chain ID: {asset.get("chain_id") or "Not applicable"}',
+        f'Token contract: {asset.get("contract") or "Native asset; no token contract"}',
+        f'Payment method: {trade.payment_method}',
+        'Settlement: manual P2P, not escrow, an atomic swap, or a bridge.',
+        'Fees: sender pays network fees separately; recipient receives the agreed total.',
+        'Payment total rounding: nearest atomic unit of the payment asset, ties up.',
         f'Gems bond: {trade.maker_bond_amount or 0}',
         f'Maker bond status: {trade.maker_bond_status}',
         '',
@@ -867,9 +887,9 @@ def _build_p2p_trade_receipt_pdf(trade, requested_by=None):
     generated_at = datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')
     created_at = trade.created_at.strftime('%Y-%m-%d %H:%M UTC') if trade.created_at else 'Unknown'
     updated_at = trade.updated_at.strftime('%Y-%m-%d %H:%M UTC') if trade.updated_at else 'Unknown'
-    amount_hns = Decimal(trade.offer.amount_hns)
-    price_btc = Decimal(trade.offer.price_btc_per_hns)
-    total_btc = amount_hns * price_btc
+    amount_hns = trade.amount_hns
+    quote_price = trade.quote_price
+    quote_total = trade.quote_total
     status_colors = {
         'matched': '#15689e',
         'completed': '#29b973',
@@ -905,9 +925,6 @@ def _build_p2p_trade_receipt_pdf(trade, requested_by=None):
         nonlocal y
         if y - required_height < 62:
             start_page()
-
-    def decimal_text(value, places):
-        return f'{Decimal(value):.{places}f}'
 
     def heading(label):
         nonlocal y
@@ -945,17 +962,26 @@ def _build_p2p_trade_receipt_pdf(trade, requested_by=None):
 
     card(52, y, 158, 62, 'You can verify', 'Parties, terms, TXIDs, messages', '#29b973')
     card(226, y, 158, 62, 'Status', f'{trade.status} / {trade.milestone}', status_color)
-    card(400, y, 160, 62, 'Total', f'{total_btc:.12f} BTC', '#15689e')
+    total_label = f'{format_decimal(quote_total)} {trade.quote_asset}'
+    card(400, y, 160, 62, 'Total', total_label if len(total_label) <= 36 else f'{trade.quote_asset} - exact total below', '#15689e')
     y -= 92
 
     heading('Trade Summary')
     key_value(52, 'Alice - HNS seller', alice_user.username)
-    key_value(315, 'Bob - HNS buyer / BTC seller', bob_user.username)
+    key_value(315, f'Bob - HNS buyer / {trade.quote_asset} payer', bob_user.username)
     y -= 52
-    key_value(52, 'Amount', f'{decimal_text(amount_hns, 8)} HNS')
-    key_value(185, 'Price', f'{decimal_text(price_btc, 12)} BTC/HNS')
-    key_value(365, 'Payment method', trade.offer.payment_method)
+    key_value(52, 'Amount', f'{format_decimal(amount_hns)} HNS')
+    key_value(185, 'Price', f'{format_decimal(quote_price)} {trade.quote_asset}/HNS', 165)
+    key_value(365, 'Payment method', trade.payment_method, 190)
     y -= 52
+    paragraph(f'Exact agreed payment: {total_label}', 96, 9)
+    paragraph(f'Payment network: {trade.payment_asset["network_label"]}; HNS network: Handshake.', 96, 9)
+    if trade.payment_asset.get('chain_id'):
+        paragraph(f'Chain ID: {trade.payment_asset["chain_id"]}', 96, 9)
+    paragraph(f'Token contract: {trade.payment_asset.get("contract") or "Native asset; no token contract"}', 96, 9)
+    paragraph('Manual P2P settlement: not escrow, an atomic swap, or a bridge.', 96, 9)
+    paragraph('Sender pays network fees separately. Total rounded to the nearest atomic unit, ties up.', 96, 9)
+    y -= 12
     key_value(52, 'Created', created_at)
     key_value(215, 'Updated', updated_at)
     key_value(378, 'Gems bond', f'{trade.maker_bond_amount or 0} / {trade.maker_bond_status}')
@@ -1053,7 +1079,7 @@ def bob_addon_manifest():
         'name': 'Liquidity Spot',
         'publisher': 'LearnHNS',
         'version': '0.1.0',
-        'description': 'P2P coordination for HNS/BTC-style liquidity trades.',
+        'description': 'Manual P2P coordination for HNS trades with explicit payment assets and networks.',
         'type': 'external-web',
         'entry': 'https://liquidity.spot/p2p',
         'homepage': 'https://liquidity.spot',
@@ -1086,7 +1112,16 @@ def bob_addon_manifest():
 
 @main_bp.route('/api/channel', methods=['GET'])
 def api_liquidity_channel():
-    p2p_offers = P2POffer.query.filter_by(status='open').order_by(P2POffer.created_at.desc()).limit(25).all()
+    version = request.args.get('version', '1')
+    if version not in ('1', '2'):
+        return jsonify({'error': 'Unsupported channel API version. Use version=1 or version=2.'}), 400
+    p2p_query = P2POffer.query.filter_by(status='open')
+    # Released Bob clients label every v1 row BTC. New pairs require explicit opt-in.
+    if version == '1':
+        p2p_query = p2p_query.filter(
+            (P2POffer.payment_asset_id == 'btc-bitcoin') | P2POffer.payment_asset_id.is_(None)
+        )
+    p2p_offers = p2p_query.order_by(P2POffer.created_at.desc()).limit(25).all()
     atomic_orders = Order.query.filter_by(status='open').order_by(Order.created_at.desc()).limit(25).all()
 
     def user_payload(user):
@@ -1103,7 +1138,7 @@ def api_liquidity_channel():
     return jsonify({
         'id': 'liquidity-spot',
         'name': 'Liquidity.spot',
-        'version': 1,
+        'version': int(version),
         'generated_at': datetime.utcnow().isoformat(),
         'links': {
             'home': _external_url_for('main.p2p'),
@@ -1122,8 +1157,16 @@ def api_liquidity_channel():
                     'id': offer.id,
                     'creator': user_payload(offer.creator),
                     'side': offer.side,
-                    'amount_hns': str(offer.amount_hns),
-                    'price_btc_per_hns': str(offer.price_btc_per_hns),
+                    'amount_hns': format_decimal(offer.settlement_amount_hns),
+                    'price_btc_per_hns': str(offer.quote_price) if offer.quote_asset == 'BTC' else None,
+                    'payment_asset_id': offer.payment_asset_id or 'btc-bitcoin',
+                    'quote_asset': offer.quote_asset,
+                    'quote_network': offer.quote_network,
+                    'price_quote_per_hns': format_decimal(offer.quote_price),
+                    'total_quote': format_decimal(offer.quote_total),
+                    'chain_id': offer.payment_asset.get('chain_id'),
+                    'token_contract': offer.payment_asset.get('contract'),
+                    'settlement': 'manual-p2p',
                     'gems_stake': offer.gems_stake or 0,
                     'payment_method': offer.payment_method,
                     'notes': offer.notes,
@@ -1164,9 +1207,22 @@ def gems_guide():
 
 @main_bp.route('/p2p')
 def p2p():
-    offers = P2POffer.query.filter_by(status='open').order_by(P2POffer.created_at.desc()).all()
+    selected_payment_asset = request.args.get('payment_asset', '').strip()
+    query = P2POffer.query.filter_by(status='open')
+    if selected_payment_asset:
+        try:
+            get_payment_asset(selected_payment_asset)
+        except ValueError:
+            return 'Unsupported payment asset/network filter.', 400
+        if selected_payment_asset == 'btc-bitcoin':
+            query = query.filter(
+                (P2POffer.payment_asset_id == 'btc-bitcoin') | P2POffer.payment_asset_id.is_(None)
+            )
+        else:
+            query = query.filter_by(payment_asset_id=selected_payment_asset)
+    offers = query.order_by(P2POffer.created_at.desc()).all()
     my_trades = []
-    current_price = _current_hns_btc_price()
+    current_price = Decimal(str(_current_hns_btc_price())).quantize(Decimal('0.000000000001'), rounding=ROUND_HALF_UP)
 
     if session.get('user_id'):
         my_trades = P2PTrade.query.filter(
@@ -1181,6 +1237,7 @@ def p2p():
         offer_contexts=offer_contexts,
         my_trades=my_trades,
         current_price=current_price,
+        selected_payment_asset=selected_payment_asset,
     )
 
 
@@ -1229,9 +1286,19 @@ def create_p2p_offer():
     side = request.form.get('side')
     amount_hns = request.form.get('amount_hns')
     price = request.form.get('price')
+    payment_asset_id = request.form.get('payment_asset', 'btc-bitcoin').strip()
     gems_stake = _parse_gems_stake(request.form.get('gems_stake'))
     payment_method = request.form.get('payment_method') or 'Manual Wallet Transfer'
     notes = request.form.get('notes')
+
+    if side not in ('buy', 'sell'):
+        flash('Choose whether you want to buy or sell HNS.', 'error')
+        return redirect(url_for('main.p2p'))
+    try:
+        amount_value, price_value, _total = parse_offer_amounts(amount_hns, price, payment_asset_id)
+    except (ValueError, InvalidOperation, TypeError) as exc:
+        flash(f'Offer not created: {exc}', 'error')
+        return redirect(url_for('main.p2p'))
 
     if gems_stake is None or gems_stake < 0:
         flash('Gems bond must be a non-negative whole number.', 'error')
@@ -1250,8 +1317,12 @@ def create_p2p_offer():
         offer = P2POffer(
             creator_id=user.id,
             side=side,
-            amount_hns=Decimal(amount_hns),
-            price_btc_per_hns=Decimal(price),
+            amount_hns=amount_value,
+            amount_hns_exact=format_decimal(amount_value),
+            payment_asset_id=payment_asset_id,
+            price_quote_per_hns=format_decimal(price_value),
+            # Preserve the legacy NOT NULL column; non-BTC consumers must use quote_price.
+            price_btc_per_hns=price_value if payment_asset_id == 'btc-bitcoin' else Decimal('0'),
             gems_stake=gems_stake,
             payment_method=payment_method,
             notes=notes,
@@ -1353,6 +1424,15 @@ def accept_p2p_offer(offer_id):
         flash('This P2P offer is no longer available.', 'error')
         return redirect(url_for('main.p2p'))
 
+    try:
+        asset = get_payment_asset(offer.payment_asset_id or 'btc-bitcoin')
+    except ValueError:
+        flash('This offer uses a payment asset/network that is not supported.', 'error')
+        return redirect(url_for('main.p2p'))
+    if asset.get('chain_id') and request.form.get('confirm_network') != 'yes':
+        flash('Confirm the exact payment token and network before accepting this offer.', 'error')
+        return redirect(url_for('main.p2p_offer_details', offer_id=offer.id))
+
     bond_status = offer.maker_bond_status or 'none'
     bond_locked_at = offer.maker_bond_locked_at
     bond_error = offer.maker_bond_error
@@ -1363,7 +1443,7 @@ def accept_p2p_offer(offer_id):
                 'title': 'This bonded offer is not available',
                 'detail': (
                     'The maker did not lock the listed Gems when this offer was created. '
-                    'No Gems, HNS, or BTC were taken from you.'
+                    'No Gems, HNS, or payment assets were taken from you.'
                 ),
                 'tips': [
                     'Ask the maker to post a new offer under the upfront-locking rules.',
@@ -1371,6 +1451,17 @@ def accept_p2p_offer(offer_id):
                 ],
             }, 'gems_error')
             return redirect(url_for('main.p2p'))
+
+    terms_snapshot = make_terms_snapshot(offer)
+    # Claim availability in the database, so simultaneous takers cannot create two rooms.
+    claim_query = P2POffer.query.filter_by(id=offer.id, status='open')
+    if offer.gems_stake and offer.gems_stake > 0:
+        claim_query = claim_query.filter_by(maker_bond_status='locked')
+    claimed = claim_query.update({'status': 'matched'}, synchronize_session=False)
+    if claimed != 1:
+        db.session.rollback()
+        flash('This P2P offer was just accepted or is no longer available.', 'error')
+        return redirect(url_for('main.p2p'))
 
     trade = P2PTrade(
         offer_id=offer.id,
@@ -1383,12 +1474,12 @@ def accept_p2p_offer(offer_id):
         maker_bond_amount=offer.gems_stake or 0,
         maker_bond_status=bond_status,
         maker_bond_locked_at=bond_locked_at,
-        maker_bond_error=bond_error
+        maker_bond_error=bond_error,
+        terms_snapshot=terms_snapshot,
     )
-    offer.status = 'matched'
 
     db.session.add(trade)
-    db.session.commit()
+    db.session.flush()
 
     db.session.add(P2PTradeParticipantState(
         trade_id=trade.id,
@@ -1556,6 +1647,18 @@ def update_p2p_trade(trade_id):
     bob_lock_txid = request.form.get('bob_lock_txid')
     latest_note = request.form.get('latest_note')
 
+    alice_lock_txid = (alice_lock_txid or '').strip()
+    bob_lock_txid = (bob_lock_txid or '').strip()
+    if alice_lock_txid and not re.fullmatch(r'[0-9a-fA-F]{64}', alice_lock_txid):
+        flash('Enter the HNS transaction ID as 64 hexadecimal characters. Nothing was saved.', 'error')
+        return redirect(url_for('main.p2p_trade_room', trade_id=trade.id))
+    if bob_lock_txid:
+        pattern = r'0x[0-9a-fA-F]{64}' if trade.payment_asset.get('chain_id') else r'[0-9a-fA-F]{64}'
+        if not re.fullmatch(pattern, bob_lock_txid):
+            expected = '0x followed by 64 hexadecimal characters' if trade.payment_asset.get('chain_id') else '64 hexadecimal characters'
+            flash(f'Enter the {trade.quote_asset} transaction ID as {expected}. Nothing was saved.', 'error')
+            return redirect(url_for('main.p2p_trade_room', trade_id=trade.id))
+
     if milestone:
         trade.milestone = milestone
     if status:
@@ -1671,12 +1774,26 @@ def cancel_p2p_offer(offer_id):
         flash('This P2P offer can no longer be canceled.', 'error')
         return redirect(url_for('main.p2p'))
 
-    if offer.maker_bond_status == 'locked' and offer.gems_stake > 0:
+    has_locked_bond = offer.maker_bond_status == 'locked' and offer.gems_stake > 0
+    if has_locked_bond:
         if not is_wallet_service_configured():
             flash('The offer is still open because its Gems bond cannot be refunded while the wallet service is unavailable.', 'error')
             return redirect(url_for('main.p2p_offer_details', offer_id=offer.id))
 
-        offer.status = 'canceling'
+    # Claim the open offer before refunding, in the same way acceptance claims it.
+    # A losing cancellation must never refund a bond already assigned to a trade.
+    changed = P2POffer.query.filter(
+        P2POffer.id == offer.id,
+        P2POffer.status == 'open',
+        P2POffer.maker_bond_status == offer.maker_bond_status,
+        P2POffer.gems_stake == offer.gems_stake,
+    ).update({'status': 'canceling' if has_locked_bond else 'canceled'}, synchronize_session=False)
+    if changed != 1:
+        db.session.rollback()
+        flash('This P2P offer was just accepted or changed and can no longer be canceled here.', 'error')
+        return redirect(url_for('main.p2p_offer_details', offer_id=offer.id))
+
+    if has_locked_bond:
         db.session.commit()
         try:
             wallet_credit_gems(
@@ -1703,7 +1820,7 @@ def cancel_p2p_offer(offer_id):
 
     offer.status = 'canceled'
     db.session.commit()
-    flash('P2P offer canceled. Its Gems bond was refunded.' if offer.gems_stake else 'P2P offer canceled.', 'success')
+    flash('P2P offer canceled. Its Gems bond was refunded.' if has_locked_bond else 'P2P offer canceled.', 'success')
     return redirect(url_for('main.p2p'))
 
 @main_bp.route('/')
@@ -1810,7 +1927,7 @@ def activity():
             'when': offer.created_at,
             'category': 'P2P Offer',
             'title': f'Created P2P offer #{offer.id}',
-            'detail': f'{offer.side.upper()} {offer.amount_hns} HNS at {offer.price_btc_per_hns} BTC/HNS with {offer.gems_stake} Gems bond',
+            'detail': f'{offer.side.upper()} {format_decimal(offer.settlement_amount_hns)} HNS at {format_decimal(offer.quote_price)} {offer.quote_asset}/HNS on {offer.payment_asset["network_label"]} with {offer.gems_stake} Gems bond',
             'href': url_for('main.p2p')
         })
 

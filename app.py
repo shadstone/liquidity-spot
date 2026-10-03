@@ -12,6 +12,9 @@ def create_app(config_name='default'):
         config_name = 'default'
         
     app.config.from_object(config[config_name])
+    from services.payment_assets import PAYMENT_ASSETS, format_decimal, transaction_url
+    app.jinja_env.globals.update(payment_assets=list(PAYMENT_ASSETS.values()),
+                                 format_decimal=format_decimal, transaction_url=transaction_url)
 
     db.init_app(app)
 
@@ -117,12 +120,12 @@ def create_app(config_name='default'):
                 })
 
             if trade.status not in final_trade_statuses:
-                if trade.offer.side == 'sell':
+                if trade.side == 'sell':
                     is_hns_seller = trade.creator_id == user_id
                 else:
                     is_hns_seller = trade.creator_id != user_id
                 role_label = 'HNS seller' if is_hns_seller else 'HNS buyer'
-                send_asset = 'HNS' if is_hns_seller else 'BTC'
+                send_asset = 'HNS' if is_hns_seller else trade.quote_asset
                 next_step = p2p_next_steps.get(trade.milestone, 'review the room')
                 hellobar_items.append({
                     'kind': 'P2P',

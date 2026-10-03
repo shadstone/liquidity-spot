@@ -14,7 +14,7 @@
             <a href="{{ url_for('main.p2p_trade_room', trade_id=trade.id) }}" class="block rounded border border-gfa-light/30 bg-black/30 p-4 hover:bg-black/50">
                 <p class="text-sm font-bold uppercase tracking-wide text-gfa-light">P2P Trade #{{ trade.id }}</p>
                 <p class="mt-1 text-lg font-bold text-white">Rate {{ counterparty.username }}</p>
-                <p class="mt-1 text-sm text-gfa-grey">{{ trade.offer.amount_hns }} HNS · completed {{ trade.updated_at.strftime('%Y-%m-%d') }}</p>
+                <p class="mt-1 text-sm text-gfa-grey">{{ format_decimal(trade.amount_hns) }} HNS · {{ trade.payment_asset.label }} · completed {{ trade.updated_at.strftime('%Y-%m-%d') }}</p>
             </a>
             {% endfor %}
         </div>
@@ -43,9 +43,9 @@
                                 <tbody>
                                     {% for trade in active_p2p_trades %}
                                     <tr class="border-b border-gfa-grey/10 hover:bg-white/5">
-                                        <td class="p-2 whitespace-nowrap">#{{ trade.id }} / Offer #{{ trade.offer_id }}</td>
+                                        <td class="p-2 whitespace-nowrap">#{{ trade.id }} / Offer #{{ trade.offer_id }}<span class="mt-1 block text-xs text-gfa-light">{{ format_decimal(trade.amount_hns) }} HNS / {{ format_decimal(trade.quote_total) }} {{ trade.quote_asset }} · {{ trade.payment_asset.network_label }}</span></td>
                                         <td class="p-2 whitespace-nowrap">
-                                            {% if trade.offer.side == 'sell' %}
+                                            {% if trade.side == 'sell' %}
                                                 {% if trade.creator_id == user.id %}Alice{% else %}Bob{% endif %}
                                             {% else %}
                                                 {% if trade.creator_id == user.id %}Bob{% else %}Alice{% endif %}
@@ -135,7 +135,7 @@
                                 {% set counterparty = trade.counterparty if trade.creator_id == user.id else trade.creator %}
                                 {% set my_feedback = feedback_by_trade_id.get(trade.id) %}
                                 <tr class="border-b border-gfa-grey/10 hover:bg-white/5">
-                                    <td class="p-2 whitespace-nowrap">#{{ trade.id }} / Offer #{{ trade.offer_id }}</td>
+                                    <td class="p-2 whitespace-nowrap">#{{ trade.id }} / Offer #{{ trade.offer_id }}<span class="mt-1 block text-xs text-gfa-light">{{ format_decimal(trade.amount_hns) }} HNS / {{ format_decimal(trade.quote_total) }} {{ trade.quote_asset }} · {{ trade.payment_asset.network_label }}</span></td>
                                     <td class="p-2 whitespace-nowrap">{{ counterparty.username }}</td>
                                     <td class="p-2 whitespace-nowrap uppercase">{{ trade.status }}</td>
                                     <td class="p-2 whitespace-nowrap">{{ trade.updated_at.strftime('%Y-%m-%d %H:%M') }}</td>
