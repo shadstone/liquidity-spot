@@ -25,6 +25,66 @@ SWAP_REMINDER_HOURS = 18
 SWAP_REMINDER_REPEAT_HOURS = 6
 
 
+def _before_payment_conditions(model):
+    conditions = [model.alice_lock_txid.is_(None), model.bob_lock_txid.is_(None)]
+    if model is Swap:
+        conditions += [model.status.in_(['pending_secret', 'initiated'])]
+        conditions += [getattr(model, field).is_(None) for field in (
+            'alice_claim_txid', 'bob_claim_txid', 'alice_refund_txid',
+            'bob_refund_txid', 'revealed_secret',
+            'alice_lock_verified_at', 'bob_lock_verified_at',
+            'alice_claim_verified_at', 'bob_claim_verified_at',
+            'hns_lock_address', 'hns_lock_script', 'hns_lock_value', 'hns_lock_output_index',
+        )]
+    else:
+        conditions += [model.status == 'matched', model.milestone == 'matched']
+    conditions += [model.admin_review_status == 'unreviewed']
+    return conditions
+
+
+def _cancel_before_payment_context(record):
+    model = type(record)
+    eligible = model.query.filter(model.id == record.id, *_before_payment_conditions(model)).count() == 1
+    token = session.setdefault('cancel_before_payment_token', secrets.token_hex(32))
+    return {'can_cancel_before_payment': eligible, 'cancel_before_payment_token': token}
+
+
+@main_bp.route('/p2p/trades/<int:id>/cancel-before-payment', methods=['POST'], defaults={'kind': 'p2p'})
+@main_bp.route('/swaps/<int:id>/cancel-before-payment', methods=['POST'], defaults={'kind': 'swap'})
+@login_required
+def cancel_before_payment(id, kind):
+    model = P2PTrade if kind == 'p2p' else Swap
+    record = model.query.get_or_404(id)
+    participants = [record.creator_id, record.counterparty_id] if kind == 'p2p' else _swap_participants(record)
+    if session['user_id'] not in participants:
+        return 'You cannot cancel this trade.', 403
+    token = session.get('cancel_before_payment_token', '')
+    if not token or not secrets.compare_digest(token, request.form.get('cancel_token', '')):
+        return 'Please reload the room before cancelling.', 400
+    if request.form.get('confirm_no_payment') != 'yes':
+        return 'Confirm that neither party has sent funds or has a transaction in progress.', 400
+
+    note = 'Canceled before payment by a participant who confirmed neither party sent funds or has a transaction in progress. This does not reverse blockchain transactions.'
+    updates = {'status': 'canceled', 'latest_note': note, 'updated_at': datetime.utcnow()}
+    if kind == 'swap':
+        updates.update(adapter_token=None, completed_at=datetime.utcnow())
+    else:
+        updates['last_actor_user_id'] = session['user_id']
+        if record.maker_bond_status == 'locked' and record.maker_bond_amount > 0:
+            updates['admin_review_status'] = 'in_review'
+    # Re-check state in the write, not only when the room was rendered.
+    changed = model.query.filter(model.id == id, *_before_payment_conditions(model)).update(updates, synchronize_session=False)
+    if not changed:
+        db.session.rollback()
+        return 'This room is no longer eligible. Reload it; if funds were sent or the state is uncertain, use messages or request review.', 409
+    message_model = P2PTradeMessage if kind == 'p2p' else SwapMessage
+    parent = {'trade_id': id} if kind == 'p2p' else {'swap_id': id}
+    db.session.add(message_model(**parent, user_id=session['user_id'], message=note))
+    db.session.commit()
+    flash('Trade canceled and moved out of active trades. Other listings are unchanged. Any locked Gems bond remains subject to review.', 'success')
+    return redirect(url_for('main.dashboard'))
+
+
 def _is_gfavip_session():
     return bool(session.get('token')) or session.get('auth_method') == 'gfavip'
 
@@ -1383,6 +1443,7 @@ def p2p_trade_room(trade_id):
         bob_user=bob_user,
         current_role=current_role,
         room_guide=_p2p_room_guide(trade, session['user_id']),
+        **_cancel_before_payment_context(trade),
         my_feedback=my_feedback,
         trade_feedback=trade_feedback,
         counterparty_feedback_stats=_p2p_feedback_stats(counterparty_user.id)
@@ -1486,6 +1547,9 @@ def update_p2p_trade(trade_id):
         flash('You do not have permission to update this trade.', 'error')
         return redirect(url_for('main.p2p'))
 
+    if trade.status == 'canceled':
+        return 'This trade is canceled. Start a new trade instead of reopening it.', 409
+
     milestone = request.form.get('milestone')
     status = request.form.get('status')
     alice_lock_txid = request.form.get('alice_lock_txid')
@@ -1542,6 +1606,9 @@ def p2p_trade_action(trade_id):
     if session['user_id'] not in [trade.creator_id, trade.counterparty_id]:
         flash('You do not have permission to update this trade.', 'error')
         return redirect(url_for('main.p2p'))
+
+    if trade.status == 'canceled':
+        return 'This trade is canceled. Start a new trade instead of reopening it.', 409
 
     action = request.form.get('action')
     note = (request.form.get('note') or '').strip()
@@ -2087,7 +2154,7 @@ def api_submit_swap_txid(id, leg):
     if not txid:
         return jsonify({'error': 'A valid 64-character txid is required.'}), 400
 
-    field_name, next_status, default_note = leg_map[leg]
+    txid_field_name, next_status, default_note = leg_map[leg]
 
     if leg == 'alice-lock' and swap.status not in ['initiated', 'alice_locked']:
         return jsonify({'error': 'Alice lock cannot be submitted before the swap is initiated.'}), 409
@@ -2105,16 +2172,24 @@ def api_submit_swap_txid(id, leg):
         swap.revealed_secret = secret
 
     if leg == 'alice-lock':
+        lock_output_index = payload.get('hns_lock_output_index')
+        if lock_output_index is None:
+            lock_output_index = payload.get('lock_output_index')
+
+        lock_value = payload.get('hns_lock_value')
+        if lock_value is None:
+            lock_value = payload.get('htlc_value')
+
         hns_metadata = {
-            'hns_lock_output_index': payload.get('hns_lock_output_index') or payload.get('lock_output_index'),
-            'hns_lock_value': payload.get('hns_lock_value') or payload.get('htlc_value'),
+            'hns_lock_output_index': lock_output_index,
+            'hns_lock_value': lock_value,
         }
-        for field_name, raw_value in hns_metadata.items():
+        for metadata_field_name, raw_value in hns_metadata.items():
             if raw_value is not None:
                 value = _clean_non_negative_int(raw_value)
                 if value is None:
-                    return jsonify({'error': f'{field_name} must be a non-negative integer.'}), 400
-                setattr(swap, field_name, value)
+                    return jsonify({'error': f'{metadata_field_name} must be a non-negative integer.'}), 400
+                setattr(swap, metadata_field_name, value)
 
         address = (payload.get('hns_lock_address') or payload.get('htlc_address') or '').strip()
         if address:
@@ -2129,7 +2204,7 @@ def api_submit_swap_txid(id, leg):
                 return jsonify({'error': 'hns_lock_script must be hex and at most 4096 characters.'}), 400
             swap.hns_lock_script = value
 
-    setattr(swap, field_name, txid)
+    setattr(swap, txid_field_name, txid)
     if leg == 'bob-claim' and swap.status != 'completed':
         _complete_swap_reputation(swap)
         swap.completed_at = datetime.utcnow()
@@ -2684,6 +2759,7 @@ def swap_details(id):
         stale_cancel_hours=SWAP_STALE_CANCEL_HOURS,
         reminder_hours=SWAP_REMINDER_HOURS,
         can_timeout_cancel=can_timeout_cancel,
+        **_cancel_before_payment_context(swap),
         can_request_review=can_request_review,
         can_send_reminder=can_send_reminder,
         funds_recorded=funds_recorded,

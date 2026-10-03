@@ -118,11 +118,14 @@
                         {% if funds_recorded %}
                             Funds appear to be in motion, so timeout leads to review instead of cancel.
                         {% else %}
-                            Cancel is only available before funds are locked and after {{ stale_cancel_hours }} hours without progress.
+                            Use Cancel before payment below if neither party sent funds. Timeout cancellation is a separate option after {{ stale_cancel_hours }} hours without progress.
                         {% endif %}
                     </p>
                 </div>
             </div>
+
+            {% set cancel_before_payment_url = url_for('main.cancel_before_payment', kind='swap', id=swap.id) %}
+            {% include '_cancel_before_payment.html' %}
 
             {% if can_timeout_cancel %}
                 <form method="POST" action="{{ url_for('main.timeout_cancel_swap', id=swap.id) }}" class="mt-4" onsubmit="return confirm('Cancel this stale swap? This only updates Liquidity.spot; it does not undo any on-chain transaction.')">
