@@ -25,3 +25,8 @@ jobs:
         run: python -m compileall app.py config.py models.py routes services
       - name: Run test suite
         run: python -m unittest discover -s tests -v
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check agent guide copy and dismissal behavior
+        run: node --test tests/test_agent_guide_js.cjs

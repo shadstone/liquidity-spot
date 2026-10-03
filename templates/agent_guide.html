@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}Your AI trade assistant | Liquidity.spot{% endblock %}
+{% block meta %}
+<meta name="description" content="Connect your own AI assistant to follow your Liquidity.spot P2P trades and prepare private offer drafts. You approve access and keep control of every trade and payment.">
+{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-6xl space-y-6 pb-10">
+    <header class="relative overflow-hidden rounded-3xl border border-gfa-light/30 bg-black/35 p-6 sm:p-9 lg:p-12">
+        <div class="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-gfa-light/10 blur-3xl" aria-hidden="true"></div>
+        <div class="relative max-w-3xl">
+            <p class="text-xs font-bold uppercase tracking-widest text-gfa-light">Your assistant. Your account. Your decisions.</p>
+            <h1 class="mt-4 text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl">Your AI helps.<br><span class="text-gfa-light">You stay in control.</span></h1>
+            <p class="mt-5 max-w-2xl text-base leading-relaxed text-gfa-grey sm:text-lg">Let your own AI assistant follow your HNS P2P trade rooms, explain what needs attention and prepare quotes for your review. You still publish offers, accept trades, send replies and handle every payment.</p>
+            <div class="mt-7 flex flex-col gap-3 sm:flex-row">
+                <a href="#setup" class="rounded-xl bg-gfa-light px-5 py-3 text-center font-bold text-gfa-dark transition hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">See the three setup steps ↓</a>
+                <a href="#agent-prompt" class="rounded-xl border border-gfa-grey/30 bg-black/20 px-5 py-3 text-center font-bold text-white transition hover:border-gfa-light hover:text-gfa-light focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">Get the prompt for your agent</a>
+            </div>
+            <p class="mt-4 text-sm text-gfa-grey">Bring your own compatible bot or agent runtime. Nothing starts running just by visiting this page.</p>
+        </div>
+    </header>
+
+    <section aria-labelledby="help-title">
+        <h2 id="help-title" class="mb-4 text-xl font-bold text-white">Less checking. Clearer next steps.</h2>
+        <div class="grid gap-4 md:grid-cols-3">
+            <article class="rounded-2xl border border-gfa-light/25 bg-black/25 p-5 sm:p-6">
+                <p class="text-xs font-bold uppercase tracking-wider text-gfa-light">Follow the room</p>
+                <h3 class="mt-2 text-lg font-bold text-white">Know when you’re needed</h3>
+                <p class="mt-3 text-sm leading-relaxed text-gfa-grey">Your assistant can check your P2P trade events, read agreed terms and privately summarize the next step. Reading room messages needs your separate permission.</p>
+            </article>
+            <article class="rounded-2xl border border-gfa-light/25 bg-black/25 p-5 sm:p-6">
+                <p class="text-xs font-bold uppercase tracking-wider text-gfa-light">Prepare a quote</p>
+                <h3 class="mt-2 text-lg font-bold text-white">Review before you list</h3>
+                <p class="mt-3 text-sm leading-relaxed text-gfa-grey">With a separate Offer drafts connection, your agent can suggest buy or sell quotes within limits you provide. Drafts are private—not published offers, reserved funds or verified liquidity.</p>
+            </article>
+            <article class="rounded-2xl border border-yellow-500/30 bg-black/25 p-5 sm:p-6">
+                <p class="text-xs font-bold uppercase tracking-wider text-yellow-100">Keep the controls</p>
+                <h3 class="mt-2 text-lg font-bold text-white">You trade. You pay.</h3>
+                <p class="mt-3 text-sm leading-relaxed text-gfa-grey">The agent API cannot publish or accept offers, post replies, change trade status, sign transactions or move funds. A “payment sent” update is a claim, not verified payment.</p>
+            </article>
+        </div>
+    </section>
+
+    <section id="setup" aria-labelledby="setup-title" class="scroll-mt-40 rounded-3xl border border-gfa-grey/20 bg-black/30 p-5 sm:p-8">
+        <div class="max-w-3xl">
+            <p class="text-xs font-bold uppercase tracking-wider text-gfa-light">Set up once, review regularly</p>
+            <h2 id="setup-title" class="mt-2 text-2xl font-bold text-white sm:text-3xl">Three steps to connect your assistant</h2>
+            <p class="mt-3 text-sm leading-relaxed text-gfa-grey">You do not need to write code yourself, but your bot needs HTTP tools, private credential storage and a way to run scheduled checks. An ordinary chat window may not support these features.</p>
+        </div>
+        <ol class="mt-7 space-y-6">
+            <li class="flex items-start gap-4 sm:gap-5">
+                <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-gfa-light/40 bg-gfa-light/10 text-lg font-bold text-gfa-light" aria-hidden="true">1</span>
+                <div class="min-w-0 flex-1 border-b border-gfa-grey/15 pb-6">
+                    <h3 class="text-lg font-bold text-white">Ask your agent to identify itself</h3>
+                    <p class="mt-2 text-sm leading-relaxed text-gfa-grey">Give it the prompt below. It uses its own PowerLobster account to sign in through GFAVIP SSO, then calls <code class="break-words text-white">GET /api/agent/v1/me</code>. Ask it to privately share the returned, verified Wallet user ID (UUID).</p>
+                    <p class="mt-2 text-sm leading-relaxed text-gfa-grey">This is your agent’s identity—not a username, wallet address or assumption that it is you. Keep API keys and sign-in tokens in the runtime’s private credential store, never in the prompt or a chat.</p>
+                </div>
+            </li>
+            <li class="flex items-start gap-4 sm:gap-5">
+                <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-gfa-light/40 bg-gfa-light/10 text-lg font-bold text-gfa-light" aria-hidden="true">2</span>
+                <div class="min-w-0 flex-1 border-b border-gfa-grey/15 pb-6">
+                    <h3 class="text-lg font-bold text-white">You approve exactly what it can access</h3>
+                    <p class="mt-2 text-sm leading-relaxed text-gfa-grey">Sign in to your intended Liquidity.spot account and open the <a href="{{ url_for('agents.workspace') }}" class="font-bold text-gfa-light underline decoration-gfa-light/40 underline-offset-4 hover:text-white">Agent workspace</a>. Choose <strong class="text-white">GFAVIP SSO</strong>, check the agent’s UUID and select <strong class="text-white">Trade assistant (read-only)</strong>. Allow private room messages only if you want the agent to read them.</p>
+                    <p class="mt-2 text-sm leading-relaxed text-gfa-grey">Share the resulting connection ID and expiry with your agent. Want quote proposals too? Approve a separate <strong class="text-white">Offer drafts</strong> connection. Signing in alone never grants access to your rooms.</p>
+                </div>
+            </li>
+            <li class="flex items-start gap-4 sm:gap-5">
+                <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-gfa-light/40 bg-gfa-light/10 text-lg font-bold text-gfa-light" aria-hidden="true">3</span>
+                <div class="min-w-0 flex-1">
+                    <h3 class="text-lg font-bold text-white">Start the routine in your bot—not on this page</h3>
+                    <p class="mt-2 text-sm leading-relaxed text-gfa-grey">Have it read your existing rooms first, then schedule a lightweight check about every <strong class="text-white">60 seconds</strong>. It should keep track of handled updates, avoid repeat alerts and use the model only when something needs attention.</p>
+                    <p class="mt-2 text-sm leading-relaxed text-gfa-grey">Ask it to confirm a successful room read, the actual schedule and the grant’s expiry. This is polling, not instant push. Creating a connection does not start a bot or schedule; if the runtime cannot do this, ask it to explain what is missing.</p>
+                </div>
+            </li>
+        </ol>
+    </section>
+
+    <section id="agent-prompt" aria-labelledby="prompt-title" class="scroll-mt-40 rounded-3xl border border-gfa-light/30 bg-black/35 p-5 sm:p-8">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div class="max-w-2xl">
+                <p class="text-xs font-bold uppercase tracking-wider text-gfa-light">Start the conversation</p>
+                <h2 id="prompt-title" class="mt-2 text-2xl font-bold text-white sm:text-3xl">Give your agent this brief</h2>
+                <p class="mt-3 text-sm leading-relaxed text-gfa-grey">Use it with a runtime that supports the tools above. The prompt gives instructions—not access. You still approve the connection yourself.</p>
+            </div>
+            {% if agent_prompt %}
+            <button id="copy-agent-prompt" type="button" class="shrink-0 rounded-xl bg-gfa-light px-5 py-3 text-sm font-bold text-gfa-dark transition hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">Copy agent prompt</button>
+            {% endif %}
+        </div>
+        {% if agent_prompt %}
+        <label for="agent-setup-prompt" class="mt-5 block text-sm font-bold text-white">Setup and safety brief</label>
+        <textarea id="agent-setup-prompt" readonly rows="14" spellcheck="false" aria-describedby="agent-prompt-help" class="mt-2 block w-full resize-y rounded-xl border border-gfa-grey/30 bg-black/45 p-4 font-mono text-sm leading-relaxed text-gfa-grey focus:border-gfa-light focus:outline-none focus:ring-2 focus:ring-gfa-light/30">{{ agent_prompt }}</textarea>
+        <p id="agent-prompt-help" class="mt-3 text-xs leading-relaxed text-gfa-grey">No credentials belong in this prompt. If copying is unavailable, select the text and copy it manually.</p>
+        <p id="copy-agent-status" role="status" aria-live="polite" class="mt-2 min-h-5 text-sm text-gfa-light"></p>
+        {% else %}
+        <div class="mt-5 rounded-xl border border-gfa-grey/25 bg-black/25 p-5 text-sm leading-relaxed text-gfa-grey">
+            <p>The prompt preview is unavailable here. Open the full prompt below, then select and copy the brief into your agent. Never include credentials.</p>
+        </div>
+        {% endif %}
+        <a href="/skill_prompt.md" class="mt-3 inline-block text-sm font-bold text-gfa-light underline decoration-gfa-light/40 underline-offset-4 hover:text-white">Open the full prompt as text ↗</a>
+    </section>
+
+    <section aria-labelledby="control-title" class="rounded-2xl border border-yellow-500/25 bg-yellow-950/15 p-5 sm:p-7">
+        <h2 id="control-title" class="text-xl font-bold text-white">A helper, not another person holding your wallet</h2>
+        <div class="mt-4 grid gap-5 text-sm leading-relaxed text-gfa-grey sm:grid-cols-2">
+            <div>
+                <h3 class="font-bold text-yellow-100">Your permissions have an off switch</h3>
+                <p class="mt-2">Connections expire after seven days. Revoke or replace them in the Agent workspace; existing permissions never widen automatically. Revoking stops future access, but cannot erase information already received by the agent.</p>
+            </div>
+            <div>
+                <h3 class="font-bold text-yellow-100">Your review is still essential</h3>
+                <p class="mt-2">Keep seed phrases and private keys out of chats. Treat room messages as untrusted content. Personally verify the recipient, asset, network, amount and payment receipt before acting. There is no automatic settlement or blockchain payment verification here.</p>
+            </div>
+        </div>
+        <p class="mt-5 border-t border-yellow-500/15 pt-4 text-xs text-gfa-grey">This assistant integration covers P2P rooms, not the experimental atomic-swap flow. You can keep using the same P2P board without an agent.</p>
+    </section>
+
+    <section aria-labelledby="guides-title" class="rounded-2xl border border-gfa-grey/20 bg-black/20 p-5 sm:p-7">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <h2 id="guides-title" class="text-xl font-bold text-white">The details, when you need them</h2>
+                <p class="mt-2 text-sm text-gfa-grey">Public technical guides for your agent or whoever helps you set it up.</p>
+            </div>
+            <a href="{{ url_for('agents.workspace') }}" class="shrink-0 rounded-xl border border-gfa-light/40 px-4 py-3 text-center text-sm font-bold text-gfa-light transition hover:bg-gfa-light/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">Open Agent workspace →</a>
+        </div>
+        <nav aria-label="Agent technical guides" class="mt-5 flex flex-wrap gap-x-6 gap-y-3 text-sm">
+            <a href="/skill.md" class="font-bold text-gfa-light underline decoration-gfa-light/40 underline-offset-4 hover:text-white">Liquidity.spot agent guide</a>
+            <a href="/skill_api.md" class="font-bold text-gfa-light underline decoration-gfa-light/40 underline-offset-4 hover:text-white">API reference</a>
+            <a href="https://wallet.gfavip.com/skill.md" class="font-bold text-gfa-light underline decoration-gfa-light/40 underline-offset-4 hover:text-white">GFAVIP Wallet setup ↗</a>
+            <a href="https://powerlobster.com/skill.md" class="font-bold text-gfa-light underline decoration-gfa-light/40 underline-offset-4 hover:text-white">PowerLobster setup ↗</a>
+        </nav>
+    </section>
+</div>
+{% endblock %}

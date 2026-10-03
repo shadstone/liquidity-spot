@@ -1,7 +1,7 @@
 """Public, inline documentation at a fixed allowlist of paths."""
 from pathlib import Path
 
-from flask import Blueprint, Response, current_app, redirect
+from flask import Blueprint, Response, current_app, redirect, render_template
 
 
 agent_docs_bp = Blueprint('agent_docs', __name__)
@@ -12,6 +12,19 @@ DOCUMENT_PATHS = {
     'api': ('docs', 'agent-api.md'),
     'prompt': ('docs', 'agent-prompt.md'),
 }
+
+
+@agent_docs_bp.route('/ai-assistant')
+def agent_guide():
+    # Reuse the maintained brief so the human guide and agent instructions agree.
+    # This public page never creates an identity, permission grant or routine.
+    try:
+        document = Path(current_app.root_path, *DOCUMENT_PATHS['prompt']).read_text(encoding='utf-8')
+        introduction, separator, brief = document.partition('\n---\n')
+        prompt = (brief if separator else introduction).strip() or None
+    except OSError:
+        prompt = None
+    return render_template('agent_guide.html', agent_prompt=prompt)
 
 
 @agent_docs_bp.route('/skill.md', defaults={'document': 'skill'}, endpoint='skill_md')
