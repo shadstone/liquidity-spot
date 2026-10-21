@@ -151,6 +151,36 @@ explicitly request `/api/channel?version=2` and consume `quote_asset`,
 
 Liquidity Spot is a coordination layer, not a custodian.
 
+### Marketplace availability
+
+The public `/p2p` marketplace shows offers first. `intent=buy|sell` is the
+visitor's intention (opposite the maker's `side`); agent/channel API `side`
+retains its existing maker-side meaning. `payment_asset` is always network-specific.
+`view=post` opens the posting form, `view=mine` shows only the signed-in
+participant's rooms, and `view=past` shows original public listing terms only.
+A matched listing is not proof of settlement or current trading activity.
+
+`p2p_offers.availability_confirmed_at` and `expires_at` are additive nullable
+timestamps (UTC). Existing rows are not backfilled or automatically expired.
+The new human form explicitly offers 1/7/30 days or no automatic expiry;
+legacy clients and agent publication retain no automatic expiry. Only the
+human owner can reconfirm an unmatched listing, with CSRF protection and
+explicit confirmation of unchanged terms. This does not expand agent grants.
+
+Expiry is evaluated on reads and on acceptance; no cleanup job changes status.
+An expired row can still have stored `status=open`, so clients must use
+`available` and `expires_at`, not status alone. Both channel versions and agent
+public books exclude expired offers. Owner `scope=mine` includes them for
+management. Inquiries become read-only and promotional share text is hidden.
+Existing matched rooms are unaffected. Expiry never refunds a bond: use the
+existing unmatched-offer cancellation flow. Expired but uncanceled offers still
+consume the agent's open-offer cap; cancellation never restores lifetime budget.
+
+Before deploying these columns, use the backup/restore rehearsal checklist
+above. Do not roll back to an app that ignores expiry while expired listings
+retain `status=open`: it could advertise or accept them. Disable offer writes
+and prepare a data-aware rollback instead. The schema itself is additive.
+
 The app should never ask for:
 
 - seed phrases;

@@ -12,14 +12,14 @@
         <div class="grid gap-7 p-6 md:p-8 lg:grid-cols-[1fr_340px] lg:items-center">
             <div>
                 <div class="inline-flex items-center rounded-full border border-gfa-light/30 bg-gfa-light/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-gfa-light">
-                    Beginner guide · Human P2P
+                    Beginner guide · P2P Marketplace
                 </div>
                 <h1 class="mt-4 text-3xl font-bold leading-tight text-white md:text-5xl">Trade HNS with a clear shared plan</h1>
                 <p class="mt-4 max-w-3xl text-base leading-relaxed text-gfa-grey md:text-lg">
                     Liquidity.spot helps an HNS seller and an HNS buyer find each other, agree on the details, and keep one shared trade record. It does not hold, send, or automatically exchange either person’s funds.
                 </p>
                 <div class="mt-6 flex flex-col gap-3 sm:flex-row">
-                    <a href="{{ url_for('main.p2p') }}" class="rounded-xl bg-gfa-light px-5 py-3 text-center font-bold text-gfa-dark hover:bg-white">Open the P2P board</a>
+                    <a href="{{ url_for('main.p2p') }}" class="rounded-xl bg-gfa-light px-5 py-3 text-center font-bold text-gfa-dark hover:bg-white">Open P2P Marketplace</a>
                     {% if session.get('user_id') %}
                     <a href="{{ url_for('main.dashboard') }}" class="rounded-xl border border-gfa-grey/25 bg-black/25 px-5 py-3 text-center font-bold text-white hover:border-gfa-light/40">View my trades</a>
                     {% else %}
@@ -88,7 +88,7 @@
                     <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gfa-light font-bold text-gfa-dark">1</span>
                     <div>
                         <h3 class="text-lg font-bold text-white">Choose an offer or post your own</h3>
-                        <p class="mt-2 text-sm leading-relaxed text-gfa-grey">Filter offers by payment asset and network. If none fit, choose Buy HNS or Sell HNS, select the payment route, and enter your amount and rate. Posting creates a public listing—it does not move funds.</p>
+                        <p class="mt-2 text-sm leading-relaxed text-gfa-grey">In Available offers, choose Buy HNS to see sellers or Sell HNS to see buyers, then filter by payment asset and network. If none fit, choose Post an offer, set your own side, amount, rate and expiry. Posting publishes terms, not proof of funds. An optional Gems bond is locked immediately.</p>
                     </div>
                 </div>
             </li>
@@ -97,7 +97,7 @@
                     <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gfa-light font-bold text-gfa-dark">2</span>
                     <div>
                         <h3 class="text-lg font-bold text-white">Check the offer before accepting</h3>
-                        <p class="mt-2 text-sm leading-relaxed text-gfa-grey">Review the HNS amount, price per HNS, exact payment total, payment network, token contract, offer note, and any maker Gems bond. Accept only if your wallet supports that exact route. Network fees are additional.</p>
+                        <p class="mt-2 text-sm leading-relaxed text-gfa-grey">Use Ask a question if the maker allows it; questions do not reserve or accept an offer. Then choose Review offer and check You receive / You pay, the exact network, token contract, note and any maker Gems bond. Accept only if your wallet supports that exact route. Network fees are additional.</p>
                     </div>
                 </div>
             </li>

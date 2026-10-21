@@ -4,7 +4,7 @@
 
 {% block meta %}
 <meta name="description" content="{{ share_text if share_text else 'This offer is no longer open. Check its current status on Liquidity.spot.' }}">
-<meta property="og:title" content="{{ offer_context.waiting_label if offer.status == 'open' else 'Offer ' ~ offer.status }}: {{ format_decimal(offer.settlement_amount_hns) }} HNS · {{ offer.payment_asset.label }}">
+<meta property="og:title" content="{{ offer_context.waiting_label if offer.is_available else offer.availability_label }}: {{ format_decimal(offer.settlement_amount_hns) }} HNS · {{ offer.payment_asset.label }}">
 <meta property="og:description" content="{{ share_text if share_text else 'This offer is no longer open. Check its current status on Liquidity.spot.' }}">
 <meta property="og:type" content="website">
 <meta property="og:url" content="{{ share_url }}">
@@ -18,26 +18,32 @@
         <span>Offer #{{ offer.id }}</span>
     </nav>
 
-    <section class="rounded-xl border {{ 'border-gfa-light/40' if offer.status == 'open' else 'border-gfa-grey/20' }} bg-black/35 p-6 md:p-8">
+    <section class="rounded-xl border {{ 'border-gfa-light/40' if offer.is_available else 'border-gfa-grey/20' }} bg-black/35 p-6 md:p-8">
         <div class="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
             <div>
-                <p class="text-sm font-bold uppercase tracking-wide {{ 'text-yellow-200' if offer.status == 'open' else 'text-gfa-grey' }}">
-                    {{ offer_context.waiting_label if offer.status == 'open' else 'Offer ' + offer.status }}
+                <p class="text-sm font-bold uppercase tracking-wide {{ 'text-yellow-200' if offer.is_available else 'text-gfa-grey' }}">
+                    {{ offer_context.waiting_label if offer.is_available else 'Expired · unavailable' if offer.status == 'open' else 'Offer ' + offer.status }}
                 </p>
                 <h1 class="mt-2 text-3xl font-bold text-white md:text-4xl">{{ format_decimal(offer.settlement_amount_hns) }} HNS</h1>
                 <p class="mt-2 text-lg text-gfa-grey">Posted by {{ offer.creator.username }}, the {{ offer_context.creator_role }}.</p>
             </div>
-            <span class="w-fit rounded-full px-3 py-1 text-sm font-bold {{ 'bg-gfa-light/20 text-gfa-light' if offer.status == 'open' else 'bg-gfa-grey/10 text-gfa-grey' }}">
-                {{ offer.status|upper }}
+            <span class="w-fit rounded-full px-3 py-1 text-sm font-bold {{ 'bg-gfa-light/20 text-gfa-light' if offer.is_available else 'bg-gfa-grey/10 text-gfa-grey' }}">
+                {{ offer.availability_label }}
             </span>
         </div>
 
-        {% if offer.status == 'open' %}
+        {% if offer.is_available %}
         <div class="mt-6 rounded-lg border border-yellow-500/30 bg-yellow-900/20 p-4 text-yellow-50">
             <p class="font-bold">Someone else must take the other side before this swap can start.</p>
             <p class="mt-1 text-sm text-yellow-100">{{ offer_context.counterparty_explanation }}</p>
         </div>
         {% endif %}
+
+        <div class="mt-6">
+            <p class="mb-3 text-sm font-bold text-yellow-200">Manual P2P · no escrow</p>
+            {% include '_p2p_offer_summary.html' %}
+            <div class="mt-4">{% include '_p2p_offer_freshness.html' %}</div>
+        </div>
 
         <dl class="mt-6 grid gap-4 rounded-lg border border-gfa-grey/15 bg-black/30 p-5 sm:grid-cols-2">
             <div>
@@ -84,13 +90,28 @@
         {% endif %}
 
         <div class="mt-6 space-y-4">
+            {% if is_creator and offer.status == 'open' %}
+            <details class="rounded-lg border border-gfa-light/40 bg-black/25 p-4" {{ 'open' if not offer.is_available else '' }}>
+                <summary class="cursor-pointer font-bold text-gfa-light">Manage availability / confirm still available</summary>
+                <p class="mt-3 text-sm text-gfa-grey">Confirm you still intend to honor this exact amount, price and payment network. This does not change the terms, reserve funds, or reopen a matched trade.</p>
+                <form method="POST" action="{{ url_for('main.confirm_p2p_offer_availability', offer_id=offer.id) }}" class="mt-4 space-y-3">
+                    <input type="hidden" name="csrf_token" value="{{ availability_token }}">
+                    <label for="renew-expiry" class="block text-sm text-white">Available from now for</label>
+                    <select id="renew-expiry" name="expiry" class="w-full rounded border border-gfa-grey/30 bg-black/50 p-3 text-white"><option value="1">1 day</option><option value="7" selected>7 days</option><option value="30">30 days</option><option value="never">Until I cancel (no automatic expiry)</option></select>
+                    <label class="flex items-start gap-3 text-sm text-gfa-grey"><input type="checkbox" name="confirm_available" value="yes" required class="mt-1 h-4 w-4 shrink-0"><span>I still intend to honor the exact terms above and want this unmatched offer available for others to accept.</span></label>
+                    <button type="submit" class="rounded-lg bg-gfa-light px-4 py-3 font-bold text-gfa-dark hover:bg-white">Confirm availability</button>
+                </form>
+                <p class="mt-3 text-xs text-gfa-grey">Expiry does not refund a Gems bond. Cancel an unmatched offer when you no longer want to trade.</p>
+                <form method="POST" action="{{ url_for('main.cancel_p2p_offer', offer_id=offer.id) }}" class="mt-3"><button type="submit" class="rounded border border-red-400/40 px-4 py-3 font-bold text-red-200">Cancel this unmatched offer</button></form>
+            </details>
+            {% endif %}
             {% include '_listing_inquiries.html' %}
-            {% if offer.status == 'open' and is_creator %}
+            {% if offer.is_available and is_creator %}
                 <div class="rounded-lg border border-gfa-light/30 bg-gfa-light/10 p-4">
                     <p class="font-bold text-white">Your offer is live, but it has not been matched yet.</p>
                     <p class="mt-1 text-sm text-gfa-grey"><a href="#offer-sharing" class="font-bold text-gfa-light underline underline-offset-4">Copy the complete offer message below</a> and share it with an {{ offer_context.counterparty_role }}. They can review it and accept without a GFAVIP account.</p>
                 </div>
-            {% elif offer.status == 'open' %}
+            {% elif offer.is_available %}
                 <form method="POST" action="{{ url_for('main.accept_p2p_offer', offer_id=offer.id) }}" onsubmit="return window.confirm('Accept offer #{{ offer.id }} and open a shared trade room? Do not send funds until both sides confirm the next step there.')">
                     {% if offer.quote_network != 'bitcoin' %}
                     <label class="mb-4 flex items-start gap-3 rounded-lg border border-yellow-500/30 bg-yellow-950/20 p-4 text-sm text-yellow-100">

@@ -1,0 +1,81 @@
+<header class="rounded-xl border border-gfa-grey/20 bg-black/30 p-5 sm:p-7">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+            <p class="text-sm font-bold text-yellow-200">Manual P2P · no escrow</p>
+            <h1 class="mt-2 text-3xl font-bold text-white sm:text-4xl">P2P Marketplace</h1>
+            <p class="mt-3 max-w-2xl text-gfa-grey">Find an offer, ask questions, then review the terms. Accepting opens a private trade room; payments happen separately in your own wallets.</p>
+        </div>
+        <a href="{{ url_for('main.p2p', view='post') }}" class="shrink-0 rounded-lg bg-gfa-light px-5 py-3 text-center font-bold text-gfa-dark hover:bg-white">Post an offer</a>
+    </div>
+    <p class="mt-4 text-sm text-gfa-grey">Looking for wallet-enforced HNS/BTC swaps? <a href="{{ url_for('main.orders') }}" class="font-bold text-gfa-light underline">Atomic swap · experimental · HNS/BTC →</a></p>
+</header>
+
+<nav aria-label="Marketplace views" class="flex flex-wrap gap-2">
+    {% for value, label in [('available', 'Available offers'), ('mine', 'My trades'), ('past', 'Past listings')] %}
+    <a href="{{ url_for('main.p2p', view=value) }}" {{ 'aria-current=page' if marketplace_view == value else '' }} class="rounded-lg border px-4 py-3 font-bold {{ 'border-gfa-light bg-gfa-light/15 text-white' if marketplace_view == value else 'border-gfa-grey/30 text-gfa-grey hover:text-white' }}">{{ label }}{% if value == 'available' %} <span class="ml-1 text-gfa-light">{{ available_count }}</span>{% endif %}</a>
+    {% endfor %}
+</nav>
+
+{% if marketplace_view in ('available', 'past') %}
+<section aria-labelledby="marketplace-heading" class="space-y-5">
+    <div>
+        <h2 id="marketplace-heading" class="text-2xl font-bold text-white">{{ 'Available offers' if marketplace_view == 'available' else 'Past listings · unavailable' }}</h2>
+        <p class="mt-2 text-sm text-gfa-grey">{% if marketplace_view == 'past' %}Original public listing terms only. Matched, canceled and expired listings cannot be taken here. A matched listing is not proof of a completed trade; private rooms and payment details remain private.{% else %}Choose what you want to do. Buy HNS shows sellers; Sell HNS shows buyers. Listings are not verified balances or guaranteed execution.{% endif %}</p>
+    </div>
+    <form method="GET" action="{{ url_for('main.p2p') }}" class="rounded-xl border border-gfa-grey/20 bg-black/25 p-4">
+        <input type="hidden" name="view" value="{{ marketplace_view }}">
+        <fieldset class="flex flex-wrap gap-3">
+            <legend class="mb-2 text-sm font-bold text-white">I want to</legend>
+            {% for value, label in [('buy', 'Buy HNS'), ('sell', 'Sell HNS'), ('all', 'See both sides')] %}
+            <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-gfa-grey/30 px-4 py-3 text-white"><input type="radio" name="intent" value="{{ value }}" {{ 'checked' if intent == value else '' }} class="h-4 w-4 accent-green-500">{{ label }}</label>
+            {% endfor %}
+        </fieldset>
+        <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div class="min-w-0 flex-1"><label for="payment-filter" class="mb-2 block text-sm font-bold text-white">Payment asset + network</label><select id="payment-filter" name="payment_asset" class="w-full rounded-lg border border-gfa-grey/30 bg-black/50 p-3 text-white"><option value="">All supported payments</option>{% for asset in payment_assets %}<option value="{{ asset.id }}" {{ 'selected' if selected_payment_asset == asset.id else '' }}>{{ asset.label }}</option>{% endfor %}</select></div>
+            <button type="submit" class="rounded-lg bg-gfa-light px-5 py-3 font-bold text-gfa-dark hover:bg-white">Show offers</button>
+        </div>
+    </form>
+    <p role="status" class="text-sm text-gfa-grey">{{ pagination.total }} {{ 'available offer' if marketplace_view == 'available' else 'past listing' }}{{ '' if pagination.total == 1 else 's' }} matching these filters.</p>
+    <div class="grid min-w-0 gap-5 lg:grid-cols-2">
+        {% for offer in offers %}
+        <article id="offer-{{ offer.id }}" aria-labelledby="offer-title-{{ offer.id }}" class="min-w-0 space-y-4 rounded-xl border border-gfa-grey/25 bg-black/30 p-5">
+            <div class="flex flex-wrap items-start justify-between gap-2">
+                <div class="min-w-0">
+                    <p class="text-xs font-bold text-yellow-200">Manual P2P · no escrow</p>
+                    <h3 id="offer-title-{{ offer.id }}" class="mt-1 break-words text-lg font-bold text-white">Offer #{{ offer.id }} · {{ offer.creator.username }}</h3>
+                    <p class="text-sm text-gfa-grey">Maker wants to {{ offer.side }} HNS · {{ offer.payment_asset.label }}</p>
+                </div>
+                <span class="rounded bg-white/10 px-2 py-1 text-xs font-bold text-gfa-grey">{{ offer.availability_label }}</span>
+            </div>
+            {% if marketplace_view == 'available' %}
+                {% include '_p2p_offer_summary.html' %}
+            {% else %}
+                <p class="break-words text-lg font-bold text-white">{{ format_decimal(offer.settlement_amount_hns) }} HNS for {{ format_decimal(offer.quote_total) }} {{ offer.quote_asset }}</p>
+                <p class="text-sm text-gfa-grey">Original rate: {{ format_decimal(offer.quote_price) }} {{ offer.quote_asset }}/HNS · {{ offer.payment_asset.network_label }}</p>
+            {% endif %}
+            {% include '_p2p_offer_freshness.html' %}
+            {% if marketplace_view == 'available' %}
+            {% if offer.notes %}<p class="break-words text-sm text-gfa-grey">{{ offer.notes|truncate(180) }}</p>{% endif %}
+            <p class="text-xs text-gfa-grey">{{ (offer.gems_stake|string) ~ ' Gems maker bond · not escrow for your payment' if offer.gems_stake else 'No Gems bond · balances not verified' }}</p>
+            {% endif %}
+            <div class="flex flex-col gap-2 border-t border-gfa-grey/15 pt-4 sm:flex-row">
+                {% if marketplace_view == 'available' and offer.creator_id != session.get('user_id') and offer.allow_pretrade_chat %}
+                <a href="{{ url_for('inquiries.start', kind='p2p', listing_id=offer.id) }}" class="rounded-lg border border-gfa-light/50 px-4 py-3 text-center font-bold text-gfa-light hover:bg-white/5">Ask a question</a>
+                {% elif marketplace_view == 'available' and not offer.allow_pretrade_chat %}<p class="self-center text-xs text-gfa-grey">Maker has turned off pre-trade questions.</p>{% endif %}
+                <a href="{{ url_for('main.p2p_offer_details', offer_id=offer.id) }}" class="rounded-lg bg-gfa-light px-4 py-3 text-center font-bold text-gfa-dark hover:bg-white">{{ 'Review offer' if marketplace_view == 'available' else 'View original listing' }} →</a>
+            </div>
+        </article>
+        {% else %}
+        <div class="rounded-xl border border-dashed border-gfa-grey/30 p-6 lg:col-span-2">
+            <p class="text-lg font-bold text-white">{{ 'No available offers match these filters.' if marketplace_view == 'available' else 'No past listings match these filters.' }}</p>
+            <p class="mt-2 text-gfa-grey">{% if marketplace_view == 'available' %}Try the other side or another payment network, or post your own offer. Already matched rooms are private and are not available offers.{% else %}Only listings that were publicly open appear here, not failed or unpublished drafts.{% endif %}</p>
+            <div class="mt-4 flex flex-wrap gap-4"><a href="{{ url_for('main.p2p', view=marketplace_view) }}" class="font-bold text-gfa-light underline">Clear filters</a><a href="{{ url_for('main.p2p', view='post') }}" class="font-bold text-gfa-light underline">Post an offer</a></div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
+{% if marketplace_view == 'mine' and not session.get('user_id') %}
+<section class="rounded-xl border border-gfa-grey/20 bg-black/30 p-6"><h2 class="text-2xl font-bold text-white">My trades are private</h2><p class="mt-2 text-gfa-grey">Sign in or recover the guest account you used to trade. Available public offers are in the first tab.</p><a href="{{ url_for('auth.login') }}" class="mt-4 inline-block font-bold text-gfa-light underline">Sign in / recover guest access →</a></section>
+{% endif %}

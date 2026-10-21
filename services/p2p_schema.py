@@ -17,7 +17,8 @@ def ensure_payment_schema(engine):
         inspector = inspect(connection)
         tables = set(inspector.get_table_names())
         for table, columns in {
-            'p2p_offers': {'payment_asset_id': 'VARCHAR(32)', 'price_quote_per_hns': 'VARCHAR(80)', 'amount_hns_exact': 'VARCHAR(80)'},
+            'p2p_offers': {'payment_asset_id': 'VARCHAR(32)', 'price_quote_per_hns': 'VARCHAR(80)', 'amount_hns_exact': 'VARCHAR(80)',
+                           'availability_confirmed_at': 'TIMESTAMP', 'expires_at': 'TIMESTAMP'},
             'p2p_trades': {'terms_snapshot': 'JSON'},
         }.items():
             if table not in tables:

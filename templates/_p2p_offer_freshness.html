@@ -1,0 +1,11 @@
+<div class="space-y-1 text-xs leading-relaxed text-gfa-grey">
+    <p>Posted <time datetime="{{ offer.created_at.isoformat() }}Z">{{ offer.created_at.strftime('%d %b %Y, %H:%M') }} UTC</time>.</p>
+    {% if offer.availability_confirmed_at %}
+    <p>Owner last confirmed <time datetime="{{ offer.availability_confirmed_at.isoformat() }}Z">{{ offer.availability_confirmed_at.strftime('%d %b %Y, %H:%M') }} UTC</time>. This is not proof of funds.</p>
+    {% else %}
+    <p>Availability not reconfirmed. Check with the maker before accepting.</p>
+    {% endif %}
+    {% if offer.expires_at %}
+    <p>{{ 'Expired' if offer.status == 'open' and not offer.is_available else 'Listing expiry' }}: <time datetime="{{ offer.expires_at.isoformat() }}Z">{{ offer.expires_at.strftime('%d %b %Y, %H:%M') }} UTC</time>.</p>
+    {% else %}<p>No automatic expiry set.</p>{% endif %}
+</div>

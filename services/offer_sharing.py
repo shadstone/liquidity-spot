@@ -4,7 +4,7 @@ from services.payment_assets import format_decimal
 
 def build_offer_share_text(offer, share_url):
     """Describe recorded terms, not a price feed or a promise of availability."""
-    if offer.status != 'open' or offer.side not in ('buy', 'sell'):
+    if not offer.is_available or offer.side not in ('buy', 'sell'):
         return None
     asset = offer.payment_asset
     direction = 'BUY' if offer.side == 'buy' else 'SELL'

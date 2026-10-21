@@ -744,7 +744,7 @@ def api_offers():
     if side is not None and side not in ('buy', 'sell'):
         raise WorkspaceError('Offer side must be buy or sell.')
     query = P2POffer.query.filter(P2POffer.id > after)
-    query = query.filter_by(status='open') if scope == 'book' else query.filter_by(creator_id=connection.owner_id)
+    query = query.filter(P2POffer.available_clause()) if scope == 'book' else query.filter_by(creator_id=connection.owner_id)
     if asset is not None:
         # Legacy offers with no explicit asset are BTC on Bitcoin, never an EVM token.
         if asset == 'btc-bitcoin':

@@ -42,7 +42,7 @@
 
             <!-- Desktop Menu -->
             <div class="hidden md:flex items-center gap-6">
-                <a href="{{ url_for('main.p2p') }}" class="hover:text-gfa-light">P2P</a>
+                <a href="{{ url_for('main.p2p') }}" class="hover:text-gfa-light">P2P Marketplace</a>
                 <div class="group relative">
                     <a href="{{ url_for('main.maker_mode') }}" class="hover:text-gfa-light">Maker Mode</a>
                     <div class="pointer-events-none absolute left-1/2 top-full z-50 mt-2 hidden w-64 -translate-x-1/2 rounded-lg border border-gfa-light/30 bg-black/95 p-3 text-xs text-gfa-light shadow-xl group-hover:block">
@@ -143,7 +143,7 @@
                         <a href="{{ url_for('auth.login') }}" class="hover:text-gfa-light">Connect GFAVIP for Gems</a>
                     {% endif %}
                 {% endif %}
-                <a href="{{ url_for('main.p2p') }}" class="hover:text-gfa-light">P2P</a>
+                <a href="{{ url_for('main.p2p') }}" class="hover:text-gfa-light">P2P Marketplace</a>
                 <a href="{{ url_for('main.maker_mode') }}" class="hover:text-gfa-light">Maker Mode</a>
                 <a href="{{ url_for('main.orders') }}" class="hover:text-gfa-light">Atomic Swaps (Experimental)</a>
                 <a href="{{ url_for('main.tutorial') }}" class="hover:text-gfa-light">Tutorial</a>
@@ -214,7 +214,7 @@
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <p class="text-sm text-gfa-grey">
                         <strong class="text-white">No active trades yet.</strong>
-                        Browse the alpha atomic swap order book or start a P2P trade.
+                        Browse available P2P offers or post an offer of your own.
                     </p>
                     <div class="flex flex-wrap gap-2">
                         <a href="{{ url_for('main.swaps_index') }}" class="rounded bg-gfa-light px-3 py-1.5 text-sm font-bold text-gfa-dark hover:bg-white transition">
@@ -224,7 +224,7 @@
                             View Maker Mode
                         </a>
                         <a href="{{ url_for('main.p2p') }}" class="rounded border border-gfa-light/30 px-3 py-1.5 text-sm font-bold text-gfa-light hover:bg-gfa-light/10 transition">
-                            View P2P
+                            P2P Marketplace
                         </a>
                     </div>
                 </div>
@@ -290,7 +290,7 @@
                         <a href="{{ url_for('auth.login') }}" class="hover:text-gfa-light">Connect GFAVIP for Gems</a>
                     {% endif %}
                 {% endif %}
-                <a href="{{ url_for('main.p2p') }}" class="hover:text-gfa-light">P2P</a>
+                <a href="{{ url_for('main.p2p') }}" class="hover:text-gfa-light">P2P Marketplace</a>
                 <a href="{{ url_for('main.maker_mode') }}" class="hover:text-gfa-light">Maker Mode</a>
                 <a href="{{ url_for('main.orders') }}" class="hover:text-gfa-light">Atomic Swaps</a>
                 <a href="{{ url_for('main.tutorial') }}" class="hover:text-gfa-light">Tutorial</a>
