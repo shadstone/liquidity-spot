@@ -111,7 +111,24 @@ class P2POffer(db.Model):
     maker_bond_resolution = db.Column(db.String(30))
     maker_bond_error = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    availability_confirmed_at = db.Column(db.DateTime, nullable=True)
+    expires_at = db.Column(db.DateTime, nullable=True)
     creator = db.relationship('User', backref='p2p_offers')
+
+    @classmethod
+    def available_clause(cls, now=None):
+        return db.and_(cls.status == 'open', db.or_(
+            cls.expires_at.is_(None), cls.expires_at > (now or datetime.utcnow())))
+
+    @property
+    def is_available(self):
+        return self.status == 'open' and (self.expires_at is None or self.expires_at > datetime.utcnow())
+
+    @property
+    def availability_label(self):
+        if self.status == 'open':
+            return 'Available' if self.is_available else 'Expired'
+        return 'Matched · unavailable' if self.status == 'matched' else self.status.replace('_', ' ').capitalize()
 
     @property
     def payment_asset(self):

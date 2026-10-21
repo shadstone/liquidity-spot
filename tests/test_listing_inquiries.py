@@ -116,7 +116,11 @@ class ListingInquiryTests(unittest.TestCase):
         for path in ('/p2p/offers/1', '/orders/23'):
             response = anonymous.get(path)
             self.assertEqual(response.status_code, 200)
-            self.assertNotIn('no-store', response.headers.get('Cache-Control', ''))
+            if path.startswith('/p2p/'):
+                # Availability can expire without a status update; do not cache stale actions.
+                self.assertIn('no-store', response.headers.get('Cache-Control', ''))
+            else:
+                self.assertNotIn('no-store', response.headers.get('Cache-Control', ''))
 
     def test_signed_out_is_not_created_and_human_bearers_cannot_fallback(self):
         anon = self.app.test_client()
@@ -285,6 +289,25 @@ class ListingInquiryTests(unittest.TestCase):
         self.assertEqual(ListingInquiryMessage.query.count(), 0)
         self.assertEqual(ListingInquiryAction.query.count(), 0)
         self.start(key='rollback')
+
+    def test_expired_p2p_listing_blocks_new_messages_but_keeps_private_history(self):
+        inquiry_id = self.start()
+        offer = db.session.get(P2POffer, 1)
+        offer.expires_at = datetime.utcnow() - timedelta(seconds=1)
+        db.session.commit()
+        self.denied(409, start_inquiry, 'p2p', 1, 'bob', 'expired-start', {'message': 'no'})
+        self.denied(409, reply_inquiry, inquiry_id, 'alice', 'expired-reply', {'message': 'no'})
+        connection = self.grant()
+        client = self.app.test_client()
+        with patch('services.agent_sso.validate_agent_identity', return_value={'gfavip_user_id': AGENT_ID}):
+            books = client.get('/api/agent/v1/listings', headers=self.headers(connection)).get_json()['books']
+            self.assertNotIn(1, [row['id'] for row in books['p2p']['listings']])
+            self.assertTrue(all(row['available'] for row in books['p2p']['listings']))
+            self.assertEqual(books['atomic']['listings'][0]['id'], 23)
+            self.assertEqual(client.get(f'/api/agent/v1/inquiries/{inquiry_id}', headers=self.headers(connection)).status_code, 200)
+        human, _ = self.human()
+        self.assertEqual(human.get(f'/inquiries/{inquiry_id}').status_code, 200)
+        self.assertEqual(ListingInquiryMessage.query.count(), 1)
 
 
 if __name__ == '__main__':

@@ -129,6 +129,23 @@ class AgentMakerRouteTests(unittest.TestCase):
         self.assertEqual(AgentMakerPolicy.query.count(), 0)
         self.assertEqual(P2POffer.query.count(), 0)
 
+    def test_expired_offer_is_hidden_from_book_but_visible_to_owner_without_restoring_caps(self):
+        connection = self.grant(policy={**POLICY, 'max_open_offers': 1})
+        response = self.publish(connection)
+        self.assertEqual(response.status_code, 201)
+        offer = db.session.get(P2POffer, response.get_json()['offer']['id'])
+        offer.expires_at = datetime.utcnow() - timedelta(seconds=1)
+        db.session.commit()
+        self.assertEqual(self.api('/offers?scope=book', connection).get_json()['offers'], [])
+        rows = self.api('/offers?scope=mine', connection).get_json()['offers']
+        self.assertEqual(len(rows), 1)
+        self.assertFalse(rows[0]['available'])
+        self.assertIsNotNone(rows[0]['expires_at'])
+        self.assertEqual(self.publish(connection, key='second').status_code, 429)
+        self.assertEqual(self.machine.post(f'/p2p/offers/{offer.id}/availability',
+            headers={'Authorization': 'Bearer ' + TOKEN}, data={'expiry': 'never', 'confirm_available': 'yes'}).status_code, 403)
+
+
     def test_approval_uses_only_reviewed_identity_policy_and_explicit_risk_consent(self):
         response, _ = self.review(include_messages='yes')
         proof = self.proof(response)

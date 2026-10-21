@@ -1,0 +1,17 @@
+{# The maker sees their own direction; everyone else sees the taker's direction. #}
+{% set own_offer = offer.creator_id == session.get('user_id') %}
+{% set receiving_hns = (offer.side == 'buy') if own_offer else (offer.side == 'sell') %}
+{% if own_offer %}<p class="mb-3 text-sm font-bold text-gfa-light">Your listing · amounts below are from your perspective</p>{% endif %}
+<dl class="grid min-w-0 gap-4 sm:grid-cols-2">
+    <div class="min-w-0 rounded-lg bg-gfa-light/10 p-4">
+        <dt class="text-sm text-gfa-grey">You receive</dt>
+        <dd class="mt-1 break-words text-2xl font-bold text-white">{{ format_decimal(offer.settlement_amount_hns) ~ ' HNS' if receiving_hns else format_decimal(offer.quote_total) ~ ' ' ~ offer.quote_asset }}</dd>
+        <dd class="mt-1 text-sm text-gfa-light">{{ 'Handshake mainnet' if receiving_hns else offer.payment_asset.network_label }}</dd>
+    </div>
+    <div class="min-w-0 rounded-lg bg-black/30 p-4">
+        <dt class="text-sm text-gfa-grey">You pay</dt>
+        <dd class="mt-1 break-words text-2xl font-bold text-white">{{ format_decimal(offer.quote_total) ~ ' ' ~ offer.quote_asset if receiving_hns else format_decimal(offer.settlement_amount_hns) ~ ' HNS' }}</dd>
+        <dd class="mt-1 text-sm text-gfa-light">{{ offer.payment_asset.network_label if receiving_hns else 'Handshake mainnet' }}</dd>
+    </div>
+</dl>
+<p class="mt-3 break-words text-sm text-gfa-grey">Rate: {{ format_decimal(offer.quote_price) }} {{ offer.quote_asset }}/HNS · Network fees extra. Full listed amount; no partial fill.</p>

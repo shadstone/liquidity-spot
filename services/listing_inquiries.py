@@ -110,7 +110,7 @@ def get_listing(kind, listing_id, lock=False):
 def listing_blocked_reason(listing, inquiry=None):
     if inquiry is not None and inquiry.closed_at is not None:
         return 'This enquiry was closed by a participant. It cannot be reopened.'
-    if listing.status != 'open':
+    if listing.status != 'open' or isinstance(listing, P2POffer) and not listing.is_available:
         return 'This listing is no longer open. The conversation is read-only.'
     if listing.allow_pretrade_chat is not True:
         return 'The listing owner has turned off pre-trade enquiries. Existing history remains private.'
@@ -125,6 +125,8 @@ def serialize_listing(kind, listing, viewer_id=None):
         'amount_hns': format_decimal(amount), 'price': format_decimal(price),
         'total': format_decimal(quote_total(amount, price, asset['decimals'])),
         'payment_asset': asset, 'status': listing.status,
+        'available': listing.is_available if kind == 'p2p' else listing.status == 'open',
+        'expires_at': listing.expires_at.isoformat() + 'Z' if kind == 'p2p' and listing.expires_at else None,
         'allow_pretrade_chat': listing.allow_pretrade_chat is True,
         'review_url': f'/p2p/offers/{listing.id}' if kind == 'p2p' else f'/orders/{listing.id}',
         'enquiry_url': f'/listings/{kind}/{listing.id}/inquire',

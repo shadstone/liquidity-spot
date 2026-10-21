@@ -1113,7 +1113,7 @@ def api_liquidity_channel():
     version = request.args.get('version', '1')
     if version not in ('1', '2'):
         return jsonify({'error': 'Unsupported channel API version. Use version=1 or version=2.'}), 400
-    p2p_query = P2POffer.query.filter_by(status='open')
+    p2p_query = P2POffer.query.filter(P2POffer.available_clause())
     # Released Bob clients label every v1 row BTC. New pairs require explicit opt-in.
     if version == '1':
         p2p_query = p2p_query.filter(
@@ -1133,7 +1133,7 @@ def api_liquidity_channel():
     def timestamp(value):
         return value.isoformat() if value else None
 
-    return jsonify({
+    response = jsonify({
         'id': 'liquidity-spot',
         'name': 'Liquidity.spot',
         'version': int(version),
@@ -1170,7 +1170,10 @@ def api_liquidity_channel():
                     'notes': offer.notes,
                     'status': offer.status,
                     'created_at': timestamp(offer.created_at),
-                    'url': _external_url_for('main.p2p') + f'#offer-{offer.id}',
+                    'available': offer.is_available,
+                    'expires_at': timestamp(offer.expires_at),
+                    'availability_confirmed_at': timestamp(offer.availability_confirmed_at),
+                    'url': _external_url_for('main.p2p_offer_details', offer_id=offer.id),
                 }
                 for offer in p2p_offers
             ],
@@ -1192,6 +1195,8 @@ def api_liquidity_channel():
             ],
         },
     })
+    response.headers['Cache-Control'] = 'no-store'
+    return response
 
 @main_bp.route('/tutorial')
 def tutorial():
@@ -1205,8 +1210,18 @@ def gems_guide():
 
 @main_bp.route('/p2p')
 def p2p():
+    view = request.args.get('view', 'available')
+    intent = request.args.get('intent', 'all')
+    if view not in ('available', 'mine', 'past', 'post') or intent not in ('all', 'buy', 'sell'):
+        return 'Choose an available marketplace view and Buy HNS or Sell HNS.', 400
     selected_payment_asset = request.args.get('payment_asset', '').strip()
-    query = P2POffer.query.filter_by(status='open')
+    available = P2POffer.available_clause()
+    query = P2POffer.query.filter(available) if view != 'past' else P2POffer.query.filter(
+        (P2POffer.status.in_(['matched', 'canceled'])) |
+        ((P2POffer.status == 'open') & ~available))
+    # The visitor's intention is the opposite of the maker's side.
+    if intent != 'all':
+        query = query.filter_by(side='sell' if intent == 'buy' else 'buy')
     if selected_payment_asset:
         try:
             get_payment_asset(selected_payment_asset)
@@ -1218,25 +1233,32 @@ def p2p():
             )
         else:
             query = query.filter_by(payment_asset_id=selected_payment_asset)
-    offers = query.order_by(P2POffer.created_at.desc()).all()
+    pagination = None
+    offers = []
+    if view in ('available', 'past'):
+        pagination = query.order_by(P2POffer.created_at.desc(), P2POffer.id.desc()).paginate(per_page=24)
+        offers = pagination.items
     my_trades = []
-    current_price = Decimal(str(_current_hns_btc_price())).quantize(Decimal('0.000000000001'), rounding=ROUND_HALF_UP)
+    current_price = Decimal(str(_current_hns_btc_price() if view == 'post' else 0)).quantize(Decimal('0.000000000001'), rounding=ROUND_HALF_UP)
 
-    if session.get('user_id'):
-        my_trades = P2PTrade.query.filter(
+    if view == 'mine' and session.get('user_id'):
+        pagination = P2PTrade.query.filter(
             (P2PTrade.creator_id == session['user_id']) |
             (P2PTrade.counterparty_id == session['user_id'])
-        ).order_by(P2PTrade.updated_at.desc()).all()
+        ).order_by(P2PTrade.updated_at.desc(), P2PTrade.id.desc()).paginate(per_page=24)
+        my_trades = pagination.items
 
-    offer_contexts = {offer.id: _p2p_offer_context(offer) for offer in offers}
-    return render_template(
+    response = current_app.make_response(render_template(
         'p2p.html',
         offers=offers,
-        offer_contexts=offer_contexts,
         my_trades=my_trades,
         current_price=current_price,
         selected_payment_asset=selected_payment_asset,
-    )
+        marketplace_view=view, intent=intent, pagination=pagination,
+        available_count=P2POffer.query.filter(available).count(),
+    ))
+    response.headers['Cache-Control'] = 'no-store, private'
+    return response
 
 
 @main_bp.route('/p2p/offers/<int:offer_id>')
@@ -1257,17 +1279,18 @@ def p2p_offer_details(offer_id):
         share_url=share_url,
         share_text=build_offer_share_text(offer, share_url),
         inquiry_listing=listing_inquiry_context('p2p', offer, session.get('user_id')),
+        availability_token=session.setdefault('offer_availability_token', secrets.token_hex(32))
+            if session.get('user_id') == offer.creator_id else None,
     ))
-    if session.get('user_id'):
-        response.headers['Cache-Control'] = 'no-store, private'
-        response.headers['Pragma'] = 'no-cache'
+    response.headers['Cache-Control'] = 'no-store, private'
+    response.headers['Pragma'] = 'no-cache'
     return response
 
 
 @main_bp.route('/maker-mode')
 def maker_mode():
     current_price = _current_hns_btc_price()
-    open_p2p_offers = P2POffer.query.filter_by(status='open').count()
+    open_p2p_offers = P2POffer.query.filter(P2POffer.available_clause()).count()
     open_atomic_orders = Order.query.filter_by(status='open').count()
     active_p2p_trades = P2PTrade.query.filter(
         P2PTrade.status.notin_(['completed', 'canceled', 'disputed', 'no_show'])
@@ -1281,6 +1304,41 @@ def maker_mode():
         active_p2p_trades=active_p2p_trades,
     )
 
+def _offer_expiry(value, now):
+    if value not in ('never', '1', '7', '30'):
+        raise ValueError('Choose no automatic expiry, 1 day, 7 days or 30 days.')
+    return None if value == 'never' else now + timedelta(days=int(value))
+
+
+@main_bp.route('/p2p/offers/<int:offer_id>/availability', methods=['POST'])
+@login_required
+def confirm_p2p_offer_availability(offer_id):
+    offer = P2POffer.query.get_or_404(offer_id)
+    if offer.creator_id != session['user_id']:
+        return 'Only the listing owner can confirm availability.', 403
+    token = session.get('offer_availability_token', '')
+    if not token or not secrets.compare_digest(token.encode(), request.form.get('csrf_token', '').encode()):
+        return 'Reload the offer before confirming availability.', 400
+    if request.form.get('confirm_available') != 'yes':
+        return 'Confirm that you still intend to honor these exact terms.', 400
+    now = datetime.utcnow()
+    try:
+        expires_at = _offer_expiry(request.form.get('expiry'), now)
+    except ValueError as exc:
+        return str(exc), 400
+    # Conditional write races safely with acceptance/cancellation. Never reopen
+    # a matched/canceled listing or change a trade's agreed financial terms.
+    changed = P2POffer.query.filter_by(id=offer_id, creator_id=session['user_id'], status='open').filter(
+        ~P2POffer.trade.any()).update(
+            {'availability_confirmed_at': now, 'expires_at': expires_at}, synchronize_session=False)
+    if changed != 1:
+        db.session.rollback()
+        return 'This listing is no longer unmatched. It cannot be renewed.', 409
+    db.session.commit()
+    flash('Availability confirmed. Your amount, price and payment network are unchanged.', 'success')
+    return redirect(url_for('main.p2p_offer_details', offer_id=offer_id))
+
+
 @main_bp.route('/p2p/offers', methods=['POST'])
 def create_p2p_offer():
     from services.listing_inquiries import new_listing_chat_choice
@@ -1288,12 +1346,12 @@ def create_p2p_offer():
         allow_pretrade_chat = new_listing_chat_choice(request.form)
     except ValueError as exc:
         flash(str(exc), 'error')
-        return redirect(url_for('main.p2p'))
+        return redirect(url_for('main.p2p', view='post'))
     try:
         user = _ensure_session_user()
     except RuntimeError:
         flash('Could not start a guest session. Please try again.', 'error')
-        return redirect(url_for('main.p2p'))
+        return redirect(url_for('main.p2p', view='post'))
 
     side = request.form.get('side')
     amount_hns = request.form.get('amount_hns')
@@ -1302,26 +1360,33 @@ def create_p2p_offer():
     gems_stake = _parse_gems_stake(request.form.get('gems_stake'))
     payment_method = request.form.get('payment_method') or 'Manual Wallet Transfer'
     notes = request.form.get('notes')
+    confirmed_at = datetime.utcnow()
+    try:
+        # Legacy clients retain no automatic expiry; the new form makes this an explicit choice.
+        expires_at = _offer_expiry(request.form.get('expiry', 'never'), confirmed_at)
+    except ValueError as exc:
+        flash(str(exc), 'error')
+        return redirect(url_for('main.p2p', view='post'))
 
     if side not in ('buy', 'sell'):
         flash('Choose whether you want to buy or sell HNS.', 'error')
-        return redirect(url_for('main.p2p'))
+        return redirect(url_for('main.p2p', view='post'))
     try:
         amount_value, price_value, _total = parse_offer_amounts(amount_hns, price, payment_asset_id)
     except (ValueError, InvalidOperation, TypeError) as exc:
         flash(f'Offer not created: {exc}', 'error')
-        return redirect(url_for('main.p2p'))
+        return redirect(url_for('main.p2p', view='post'))
 
     if gems_stake is None or gems_stake < 0:
         flash('Gems bond must be a non-negative whole number.', 'error')
-        return redirect(url_for('main.p2p'))
+        return redirect(url_for('main.p2p', view='post'))
 
     if not _gems_allowed_or_flash(gems_stake):
-        return redirect(url_for('main.p2p'))
+        return redirect(url_for('main.p2p', view='post'))
 
     if gems_stake and gems_stake > 0 and not is_wallet_service_configured():
         flash('A Gems bond cannot be posted while the GFAVIP wallet service is unavailable. Use no bond or try again later.', 'error')
-        return redirect(url_for('main.p2p'))
+        return redirect(url_for('main.p2p', view='post'))
 
     offer = None
     bond_locked = False
@@ -1341,6 +1406,8 @@ def create_p2p_offer():
             status='funding' if gems_stake and gems_stake > 0 else 'open',
             maker_bond_status='pending' if gems_stake and gems_stake > 0 else 'none',
             allow_pretrade_chat=allow_pretrade_chat,
+            availability_confirmed_at=confirmed_at,
+            expires_at=expires_at,
         )
         db.session.add(offer)
         db.session.commit()
@@ -1374,7 +1441,7 @@ def create_p2p_offer():
                         'Enter 0 to post a normal P2P offer without a Gems bond.',
                     ],
                 }, 'gems_error')
-                return redirect(url_for('main.p2p'))
+                return redirect(url_for('main.p2p', view='post'))
 
             bond_locked = True
             offer.status = 'open'
@@ -1422,7 +1489,7 @@ def create_p2p_offer():
         else:
             flash('Error creating P2P offer. Please check the details and try again.', 'error')
 
-    return redirect(url_for('main.p2p'))
+    return redirect(url_for('main.p2p', view='post'))
 
 @main_bp.route('/p2p/offers/<int:offer_id>/accept', methods=['POST'])
 def accept_p2p_offer(offer_id):
@@ -1433,7 +1500,7 @@ def accept_p2p_offer(offer_id):
         flash('You cannot accept your own P2P offer.', 'error')
         return redirect(url_for('main.p2p'))
 
-    if offer.status != 'open':
+    if not offer.is_available:
         flash('This P2P offer is no longer available.', 'error')
         return redirect(url_for('main.p2p'))
 
@@ -1467,7 +1534,7 @@ def accept_p2p_offer(offer_id):
 
     terms_snapshot = make_terms_snapshot(offer)
     # Claim availability in the database, so simultaneous takers cannot create two rooms.
-    claim_query = P2POffer.query.filter_by(id=offer.id, status='open')
+    claim_query = P2POffer.query.filter_by(id=offer.id).filter(P2POffer.available_clause())
     if offer.gems_stake and offer.gems_stake > 0:
         claim_query = claim_query.filter_by(maker_bond_status='locked')
     claimed = claim_query.update({'status': 'matched'}, synchronize_session=False)
@@ -1964,7 +2031,7 @@ def activity():
             'category': 'P2P Offer',
             'title': f'Created P2P offer #{offer.id}',
             'detail': f'{offer.side.upper()} {format_decimal(offer.settlement_amount_hns)} HNS at {format_decimal(offer.quote_price)} {offer.quote_asset}/HNS on {offer.payment_asset["network_label"]} with {offer.gems_stake} Gems bond',
-            'href': url_for('main.p2p')
+            'href': url_for('main.p2p_offer_details', offer_id=offer.id)
         })
 
     trades = P2PTrade.query.filter(

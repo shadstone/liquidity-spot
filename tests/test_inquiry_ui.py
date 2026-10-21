@@ -91,7 +91,7 @@ class InquiryUITests(unittest.TestCase):
             return message.id
 
     def test_both_creation_forms_default_to_private_questions_on(self):
-        for path, action, checkbox in (('/p2p', '/p2p/offers', 'p2p-allow-pretrade-chat'),
+        for path, action, checkbox in (('/p2p?view=post', '/p2p/offers', 'p2p-allow-pretrade-chat'),
                                        ('/orders', '/orders', 'atomic-allow-pretrade-chat')):
             with self.subTest(path=path):
                 body, tags = self.get(path)

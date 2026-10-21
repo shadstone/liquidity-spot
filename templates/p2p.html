@@ -1,202 +1,18 @@
 {% extends "base.html" %}
-
-{% block title %}P2P Swaps | Liquidity.spot{% endblock %}
-
+{% block title %}P2P Marketplace | Liquidity.spot{% endblock %}
 {% block content %}
-<div class="max-w-7xl mx-auto space-y-8">
+<div class="max-w-7xl mx-auto min-w-0 space-y-6">
+{% include '_p2p_marketplace.html' %}
+{% if marketplace_view == 'post' %}
+<section class="mx-auto max-w-2xl rounded-xl border border-gfa-grey/20 bg-black/30 p-5 sm:p-7">
+<h2 class="mb-2 text-2xl font-bold text-white">Post an offer</h2>
+<p class="mb-5 text-sm text-gfa-grey">Manual P2P · no escrow. Set the exact terms you are willing to honor. Posting does not send HNS or payment assets. An optional Gems bond is locked immediately.</p>
+{% include '_p2p_create_offer.html' %}
+</section>
+{% endif %}
+{% if marketplace_view == 'mine' and session.get('user_id') %}
     <div class="bg-black/30 p-6 rounded-lg border border-gfa-grey/20">
-        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-                <div class="inline-flex items-center gap-2 bg-gfa-light/20 text-gfa-light text-sm font-bold px-3 py-1 rounded-full mb-3">
-                    P2P Board
-                </div>
-                <h1 class="text-4xl font-bold text-gfa-light">Human P2P Swaps</h1>
-                <p class="text-gfa-grey mt-2 max-w-3xl">
-                    This is a matching board, not an instant exchange. Post an offer, copy its ready-made message for Telegram or other groups, and wait for another person to take the other side. Share the full details, not just the link. A shared trade room opens only after they accept.
-                </p>
-            </div>
-            <div class="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-4 text-sm text-yellow-100 md:max-w-sm">
-                <strong>How it works:</strong> Posting does not send funds. Choose the payment asset and network explicitly. This is manual P2P, not escrow, an atomic swap, or a bridge.
-            </div>
-        </div>
-    </div>
-
-    <div class="grid grid-cols-1 xl:grid-cols-5 gap-6">
-        <div class="xl:col-span-2 bg-black/30 p-6 rounded-lg border border-gfa-grey/20">
-            <h2 class="text-2xl font-bold text-white mb-4">Create P2P Offer</h2>
-            {% if not session.get('user_id') %}
-            <div class="mb-4 rounded-lg border border-blue-500/30 bg-blue-900/20 p-3 text-sm text-blue-100">
-                You can post as a guest. GFAVIP is only needed if you add a Gems bond or want account-linked benefits.
-            </div>
-            {% endif %}
-            <form method="POST" action="{{ url_for('main.create_p2p_offer') }}" class="space-y-4" id="p2p-offer-form">
-                <div>
-                    <label class="block text-gfa-grey mb-1">Side</label>
-                    <select name="side" id="p2p-side" class="w-full bg-black/50 border border-gfa-grey/30 rounded p-2 text-white">
-                        <option value="buy">Buy HNS</option>
-                        <option value="sell">Sell HNS</option>
-                    </select>
-                </div>
-                <div>
-                    <label for="p2p-payment-asset" class="block text-gfa-grey mb-1">Pay / receive with</label>
-                    <select name="payment_asset" id="p2p-payment-asset" class="w-full bg-black/50 border border-gfa-grey/30 rounded p-2 text-white">
-                        {% for asset in payment_assets %}
-                        <option value="{{ asset.id }}" {{ 'selected' if asset.id == 'btc-bitcoin' else '' }}>{{ asset.label }}</option>
-                        {% endfor %}
-                    </select>
-                    <p class="mt-2 text-xs text-gfa-grey">Asset + network are part of the deal, not interchangeable payment options. HNS is always on Handshake mainnet.</p>
-                    <div id="p2p-network-summary" class="mt-3 rounded-lg border border-gfa-grey/20 bg-black/25 p-3 text-sm text-gfa-grey" aria-live="polite"></div>
-                </div>
-                <div>
-                    <label for="p2p-amount" class="block text-gfa-grey mb-1">Amount (HNS)</label>
-                    <div class="space-y-2">
-                        <input type="text" inputmode="decimal" name="amount_hns" id="p2p-amount" required class="w-full bg-black/50 border border-gfa-grey/30 rounded p-2 text-white" placeholder="1000">
-                        <div class="flex flex-wrap gap-2">
-                            <button type="button" class="text-xs bg-white/10 text-gfa-grey px-3 py-1 rounded hover:bg-white/20" onclick="setP2PAmount('250')">250</button>
-                            <button type="button" class="text-xs bg-white/10 text-gfa-grey px-3 py-1 rounded hover:bg-white/20" onclick="setP2PAmount('500')">500</button>
-                            <button type="button" class="text-xs bg-white/10 text-gfa-grey px-3 py-1 rounded hover:bg-white/20" onclick="setP2PAmount('1000')">1000</button>
-                            <button type="button" class="text-xs bg-white/10 text-gfa-grey px-3 py-1 rounded hover:bg-white/20" onclick="setP2PAmount('5000')">5000</button>
-                        </div>
-                    </div>
-                    <p class="mt-1 text-xs text-gfa-grey">Up to 6 decimal places. Enter a plain decimal, for example 0.5.</p>
-                </div>
-                <div>
-                    <label for="p2p-price" id="p2p-price-label" class="block text-gfa-grey mb-1">Price (BTC per HNS)</label>
-                    <div class="space-y-2">
-                        <input type="text" inputmode="decimal" name="price" id="p2p-price" required class="w-full bg-black/50 border border-gfa-grey/30 rounded p-2 text-white" placeholder="{{ format_decimal(current_price) }}" value="{{ format_decimal(current_price) }}">
-                        <div id="p2p-btc-reference" class="flex flex-wrap gap-2">
-                            <button type="button" class="text-xs bg-gfa-blue text-white px-3 py-1 rounded hover:bg-blue-600" onclick="setP2PPriceToMarket()">Use BTC reference</button>
-                        </div>
-                    </div>
-                    <p class="text-xs text-gfa-grey mt-1" id="p2p-price-help">Set your own rate. The BTC reference is indicative, not an executable price.</p>
-                </div>
-                <div>
-                    <label class="block text-gfa-grey mb-1">Payment Method</label>
-                    <input type="text" name="payment_method" id="p2p-payment-method" class="w-full bg-black/50 border border-gfa-grey/30 rounded p-2 text-white" value="Manual Wallet Transfer">
-                </div>
-                <div>
-                    <label class="block text-gfa-grey mb-1">Gems Bond (Optional)</label>
-                    <input type="number" name="gems_stake" id="p2p-gems-stake" class="w-full bg-black/50 border border-gfa-grey/30 rounded p-2 text-white" placeholder="25">
-                    <p class="text-xs text-gfa-grey mt-1">
-                        Optional maker bond. The Gems are locked immediately before your offer goes live and returned when you cancel or complete the trade.
-                        <a href="{{ url_for('main.gems_guide') }}" class="font-bold text-gfa-light hover:text-white">How Gems bonds work</a>
-                    </p>
-                    <div id="p2p-gems-lock-summary" class="mt-3 hidden border border-yellow-500/40 bg-yellow-950/30 p-3 text-sm text-yellow-100" aria-live="polite">
-                        <strong id="p2p-gems-lock-amount"></strong>
-                        will be deducted now and held as your maker bond. Your offer will not go live unless the lock succeeds.
-                    </div>
-                </div>
-                <div>
-                    <label class="block text-gfa-grey mb-1">Notes</label>
-                    <textarea name="notes" id="p2p-notes" rows="4" class="w-full bg-black/50 border border-gfa-grey/30 rounded p-2 text-white" placeholder="Preferred contact pace, wallet expectations, confirmation preference, etc."></textarea>
-                </div>
-                <input type="hidden" name="inquiry_setting_present" value="yes">
-                <label for="p2p-allow-pretrade-chat" class="flex items-start gap-3 rounded-lg border border-gfa-light/30 bg-black/20 p-3 text-sm text-gfa-grey"><input id="p2p-allow-pretrade-chat" type="checkbox" name="allow_pretrade_chat" value="yes" checked class="mt-1 h-4 w-4 shrink-0"><span><strong class="text-white">Allow private questions before accepting.</strong> Interested people can ask or negotiate through your inquiry inbox. No trade is accepted, no funds are locked and the listing is not reserved. You can turn this off on the offer page.</span></label>
-                <div class="bg-black/40 border border-gfa-grey/20 rounded p-3 text-sm text-gfa-grey">
-                    <div class="flex items-center justify-between gap-4">
-                        <span>Transfer total</span>
-                        <span class="font-mono text-gfa-light break-all" id="p2p-total-btc">—</span>
-                    </div>
-                    <p class="mt-2 text-xs">Total rounded to token precision; sender pays network fees separately. Review the final amount on the offer page before sharing.</p>
-                </div>
-                <div class="flex flex-wrap gap-2">
-                    <button type="button" class="text-xs bg-white/10 text-gfa-grey px-3 py-1 rounded hover:bg-white/20" onclick="reuseLastP2PListing()">Reuse Last Listing</button>
-                    <button type="button" class="text-xs bg-white/10 text-gfa-grey px-3 py-1 rounded hover:bg-white/20" onclick="clearP2PListingForm()">Clear Form</button>
-                </div>
-                <button type="submit" id="p2p-submit-offer" class="w-full bg-gfa-light text-gfa-dark font-bold py-2 rounded hover:bg-white transition">
-                    <span id="p2p-submit-offer-label">Post Offer &amp; Share</span>
-                </button>
-            </form>
-        </div>
-
-        <div class="xl:col-span-3 bg-black/30 p-6 rounded-lg border border-gfa-grey/20">
-            <h2 class="text-2xl font-bold text-white mb-4">Open P2P Offers</h2>
-            <p class="mb-4 text-sm text-gfa-grey">Each listing is waiting for a real counterparty. Open or share an offer to connect the HNS buyer and seller.</p>
-            <form method="GET" action="{{ url_for('main.p2p') }}" class="mb-5 flex flex-wrap items-end gap-2">
-                <div class="min-w-0 flex-1"><label for="payment-filter" class="mb-1 block text-sm text-gfa-grey">Filter payment asset + network</label><select id="payment-filter" name="payment_asset" class="w-full rounded border border-gfa-grey/30 bg-black/50 p-2 text-white"><option value="">All supported payments</option>{% for asset in payment_assets %}<option value="{{ asset.id }}" {{ 'selected' if request.args.get('payment_asset') == asset.id else '' }}>{{ asset.label }}</option>{% endfor %}</select></div>
-                <button type="submit" class="rounded bg-gfa-blue px-4 py-2 font-bold text-white">Filter</button>
-            </form>
-            {% if offers %}
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left text-sm">
-                        <thead>
-                            <tr class="border-b border-gfa-grey/30">
-                                <th class="p-2">User</th>
-                                <th class="p-2">Role</th>
-                                <th class="p-2">HNS</th>
-                                <th class="p-2">Price per HNS</th>
-                                <th class="p-2">Details</th>
-                                <th class="p-2 text-right">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for offer in offers %}
-                            {% set context = offer_contexts[offer.id] %}
-                            <tr id="offer-{{ offer.id }}" class="border-b border-gfa-grey/10 hover:bg-white/5">
-                                <td class="p-2 align-top">
-                                    <div class="font-medium text-white">{{ offer.creator.username }}</div>
-                                    {% if offer.creator_id == session.get('user_id') %}
-                                        <span class="text-xs bg-gfa-grey/20 px-1 rounded ml-1">(You)</span>
-                                    {% endif %}
-                                    {% if offer.notes %}
-                                        <div class="text-xs text-gfa-grey mt-2 leading-snug">{{ offer.notes }}</div>
-                                    {% endif %}
-                                </td>
-                                <td class="p-2 align-top">
-                                    <span class="block text-xs font-bold text-yellow-200">{{ context.waiting_label }}</span>
-                                    <span class="mt-1 block text-xs text-gfa-grey leading-snug">Creator: {{ context.creator_role }}</span>
-                                </td>
-                                <td class="p-2 align-top">{{ format_decimal(offer.settlement_amount_hns) }}</td>
-                                <td class="p-2 align-top"><span class="block font-mono">{{ format_decimal(offer.quote_price) }} {{ offer.quote_asset }}</span><span class="mt-1 block text-xs font-bold text-gfa-light">{{ offer.payment_asset.network_label }}</span><span class="mt-1 block text-xs text-gfa-grey">Total {{ format_decimal(offer.quote_total) }} {{ offer.quote_asset }}</span></td>
-                                <td class="p-2 align-top text-xs text-gfa-grey">
-                                    <div>{{ offer.payment_method }}</div>
-                                    <div class="mt-2">
-                                        {% if offer.gems_stake and offer.gems_stake > 0 %}
-                                            {{ offer.gems_stake }} 💎 locked maker bond
-                                            <a href="{{ url_for('main.gems_guide') }}" class="ml-1 text-gfa-light hover:text-white" aria-label="Learn how Gems bonds work">What is this?</a>
-                                        {% else %}
-                                            No Gems bond
-                                        {% endif %}
-                                    </div>
-                                </td>
-                                <td class="p-2 align-top text-right">
-                                    {% if offer.creator_id == session.get('user_id') %}
-                                        <div class="flex flex-col items-end gap-2">
-                                            <a href="{{ url_for('main.p2p_offer_details', offer_id=offer.id) }}" class="rounded bg-gfa-light px-3 py-1 text-xs font-bold text-gfa-dark hover:bg-white">View &amp; Share</a>
-                                            <form method="POST" action="{{ url_for('main.cancel_p2p_offer', offer_id=offer.id) }}">
-                                                <button type="submit" class="text-red-400 hover:text-red-300 text-xs">Cancel</button>
-                                            </form>
-                                        </div>
-                                    {% else %}
-                                        {% if offer.allow_pretrade_chat %}<a href="{{ url_for('inquiries.start', kind='p2p', listing_id=offer.id) }}" class="mb-2 block text-xs font-bold text-gfa-light hover:text-white">Ask / negotiate first</a>{% endif %}
-                                        {% if offer.quote_network != 'bitcoin' %}
-                                        <a href="{{ url_for('main.p2p_offer_details', offer_id=offer.id) }}" class="inline-block rounded bg-gfa-blue px-3 py-1 text-xs text-white hover:bg-blue-600">Review asset &amp; network</a>
-                                        {% else %}
-                                        <form method="POST" action="{{ url_for('main.accept_p2p_offer', offer_id=offer.id) }}" onsubmit="return confirmP2PAccept(this)">
-                                            <input type="hidden" name="offer_side" value="{{ offer.side }}">
-                                            <input type="hidden" name="offer_amount" value="{{ format_decimal(offer.settlement_amount_hns) }}">
-                                            <input type="hidden" name="offer_price" value="{{ format_decimal(offer.quote_price) }}">
-                                            <input type="hidden" name="offer_total" value="{{ format_decimal(offer.quote_total) }}">
-                                            <button type="submit" class="bg-gfa-blue text-white text-xs px-3 py-1 rounded hover:bg-blue-600">{{ context.action_label }}</button>
-                                        </form>
-                                        {% endif %}
-                                        <a href="{{ url_for('main.p2p_offer_details', offer_id=offer.id) }}" class="mt-2 inline-block text-xs text-gfa-light hover:text-white">View shareable offer</a>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            {% else %}
-                <p class="text-gfa-grey">No open P2P offers yet.</p>
-            {% endif %}
-        </div>
-    </div>
-
-    {% if session.get('user_id') %}
-    <div class="bg-black/30 p-6 rounded-lg border border-gfa-grey/20">
-        <h2 class="text-2xl font-bold text-white mb-4">My P2P Trades</h2>
+        <h2 class="text-2xl font-bold text-white mb-4">My trades</h2>
         {% if my_trades %}
             <div class="overflow-x-auto">
                 <table class="w-full text-left">
@@ -217,15 +33,15 @@
                             <td class="p-2 whitespace-nowrap">
                                 {% if trade.side == 'sell' %}
                                     {% if trade.creator_id == session.get('user_id') %}
-                                        Alice
+                                        HNS seller
                                     {% else %}
-                                        Bob
+                                        HNS buyer
                                     {% endif %}
                                 {% else %}
                                     {% if trade.creator_id == session.get('user_id') %}
-                                        Bob
+                                        HNS buyer
                                     {% else %}
-                                        Alice
+                                        HNS seller
                                     {% endif %}
                                 {% endif %}
                             </td>
@@ -246,30 +62,15 @@
     </div>
     {% endif %}
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div class="bg-black/30 p-6 rounded-lg border border-gfa-grey/20">
-            <h2 class="text-2xl font-bold text-white mb-4">How Alice & Bob Work Here</h2>
-            <ul class="list-disc list-inside text-gfa-grey space-y-2">
-                <li><strong class="text-white">Alice</strong> is always the seller of HNS.</li>
-                <li><strong class="text-white">Bob</strong> is always the buyer of HNS.</li>
-                <li>If an offer says <strong class="text-white">Sell HNS</strong>, the offer creator is Alice.</li>
-                <li>If an offer says <strong class="text-white">Buy HNS</strong>, the offer creator is Bob.</li>
-            </ul>
-        </div>
-
-        <div class="bg-black/30 p-6 rounded-lg border border-gfa-grey/20">
-            <h2 class="text-2xl font-bold text-white mb-4">Why P2P Is Here</h2>
-            <ul class="list-disc list-inside text-gfa-grey space-y-2">
-                <li>Shared trade room and milestone tracking</li>
-                <li>TXID submission, notes, and confirmations</li>
-                <li>Disputes and moderation support</li>
-                <li>No platform custody of funds</li>
-                <li>Trustless HTLC tools remain available separately in testing mode</li>
-            </ul>
-        </div>
-    </div>
+{% if pagination and pagination.pages > 1 %}
+<nav aria-label="Results pages" class="flex flex-wrap items-center justify-between gap-3 text-gfa-light">
+{% if pagination.has_prev %}<a class="rounded border border-gfa-light/40 px-4 py-3" href="{{ url_for('main.p2p', view=marketplace_view, intent=intent, payment_asset=selected_payment_asset, page=pagination.prev_num) }}">← Previous</a>{% endif %}
+<span class="text-sm text-gfa-grey">Page {{ pagination.page }} of {{ pagination.pages }}</span>
+{% if pagination.has_next %}<a class="rounded border border-gfa-light/40 px-4 py-3" href="{{ url_for('main.p2p', view=marketplace_view, intent=intent, payment_asset=selected_payment_asset, page=pagination.next_num) }}">Next →</a>{% endif %}
+</nav>
+{% endif %}
 </div>
-
+{% if marketplace_view == 'post' %}
 <script>
     const p2pMarketPrice = {{ format_decimal(current_price)|tojson }};
     const p2pPaymentAssets = {{ payment_assets|tojson }};
@@ -368,20 +169,6 @@
             : 'Post Offer & Share';
     }
 
-    function confirmP2PAccept(form) {
-        const side = (form.querySelector('[name="offer_side"]')?.value || '').toUpperCase();
-        const amount = form.querySelector('[name="offer_amount"]')?.value || 'the listed';
-        const price = form.querySelector('[name="offer_price"]')?.value || 'the listed price';
-        const total = form.querySelector('[name="offer_total"]')?.value || 'the listed total';
-
-        return window.confirm(
-            `Open a P2P trade room for this ${side} offer?\n\n` +
-            `Amount: ${amount} HNS\n` +
-            `Price: ${price} BTC/HNS\nTotal: ${total} BTC on Bitcoin (network fees additional)\n\n` +
-            'This will match the offer and open a shared room. Do not move BTC or HNS until you coordinate the next step there.'
-        );
-    }
-
     function reuseLastP2PListing() {
         if (!document.getElementById('p2p-offer-form')) return;
         let data;
@@ -412,6 +199,7 @@
         document.getElementById('p2p-payment-method').value = 'Manual Wallet Transfer';
         document.getElementById('p2p-gems-stake').value = '';
         document.getElementById('p2p-notes').value = '';
+        document.getElementById('p2p-expiry').value = '7';
         updateP2PPaymentAsset();
         updateP2PGemsBond();
     }
@@ -438,4 +226,5 @@
         updateP2PGemsBond();
     }
 </script>
+{% endif %}
 {% endblock %}

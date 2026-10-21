@@ -245,6 +245,8 @@ def api_listings():
         if kind not in ('all', current_kind):
             continue
         query = model.query.filter(model.id > after, model.status == 'open')
+        if current_kind == 'p2p':
+            query = query.filter(P2POffer.available_clause())
         if side:
             query = query.filter_by(side=side)
         if asset:
