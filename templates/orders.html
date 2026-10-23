@@ -73,7 +73,7 @@
     <!-- Order Book -->
     <div class="md:col-span-2 bg-black/30 p-6 rounded-lg">
         <h2 class="text-2xl font-bold mb-4 text-gfa-light">Atomic Swap Order Book</h2>
-        {% if orders %}
+        <p class="mb-3 text-sm text-gfa-grey">Live ShakeScape offers appear below the Liquidity Spot orders. They are separate offers; check their current terms in ShakeScape before acting.</p>
             <div class="overflow-x-auto">
                 <table class="w-full text-left min-w-[600px]">
                     <thead>
@@ -87,6 +87,9 @@
                         </tr>
                     </thead>
                     <tbody>
+                        {% if not orders %}
+                            <tr><td colspan="6" class="p-2 text-gfa-grey">No open Liquidity Spot orders available.</td></tr>
+                        {% endif %}
                         {% for order in orders %}
                             <tr id="order-{{ order.id }}" class="border-b border-gfa-grey/10 hover:bg-white/5 {{ 'bg-white/5' if order.user_id == session.get('user_id') else '' }}">
                                 <td class="p-2 text-sm text-gfa-grey whitespace-nowrap">
@@ -122,14 +125,30 @@
                             </tr>
                         {% endfor %}
                     </tbody>
+                    <tbody id="shakescape-offer-rows" data-feed-url="{{ url_for('shakescape.external_offers') }}"></tbody>
                 </table>
             </div>
-        {% else %}
-            <p class="text-gfa-grey">No open orders available.</p>
-        {% endif %}
+        <p id="shakescape-offer-status" class="mt-3 text-xs text-gfa-grey" aria-live="polite">Checking ShakeScape offers…</p>
+        <section class="mt-8" aria-labelledby="shakescape-name-offers-title">
+            <h3 id="shakescape-name-offers-title" class="text-xl font-bold text-gfa-light">ShakeScape Name Offers</h3>
+            <p class="mt-2 text-sm text-gfa-grey">Signed name-sale advertisements from the relay. Open or copy the ShakeScape app link; copy the listing ID for manual lookup. The wallet checks the current locked name and exact terms before purchase; ownership finalizes later on chain.</p>
+            <div class="mt-3 overflow-x-auto">
+                <table class="w-full text-left min-w-[600px]">
+                    <thead><tr class="border-b border-gfa-grey/30">
+                        <th class="p-2">Name</th><th class="p-2">Price (HNS)</th>
+                        <th class="p-2">Marketplace fee (HNS)</th><th class="p-2">Expires</th>
+                        <th class="p-2">Action</th>
+                    </tr></thead>
+                    <tbody id="shakescape-name-offer-rows" data-feed-url="{{ url_for('shakescape.external_name_offers') }}"></tbody>
+                </table>
+            </div>
+            <p id="shakescape-name-offer-status" class="mt-3 text-xs text-gfa-grey" aria-live="polite">Checking name offers…</p>
+        </section>
     </div>
 </div>
 
+<script src="{{ url_for('static', filename='js/shakescape-offers.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/shakescape-name-offers.js') }}" defer></script>
 <script>
     function useMarketPrice() {
         const price = parseFloat("{{ '%.12f'|format(current_price) }}");

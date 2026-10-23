@@ -24,6 +24,9 @@ def create_app(config_name='default'):
     from routes.main import main_bp
     app.register_blueprint(main_bp)
 
+    from routes.shakescape import shakescape_bp
+    app.register_blueprint(shakescape_bp)
+
     from routes.admin import admin_bp
     app.register_blueprint(admin_bp)
 
