@@ -142,13 +142,13 @@ class AgentGuideTests(unittest.TestCase):
         self.assertEqual(response.status_code, 405)
         self.assertNotIn('Set-Cookie', response.headers)
 
-    def test_sticky_banner_is_public_and_loads_existing_shared_script(self):
+    def test_nonsticky_banner_is_public_and_loads_existing_shared_script(self):
         response = self.client.get('/tutorial')
         self.assertEqual(response.status_code, 200)
         document = GuideHTML(response.get_data(as_text=True))
         banner = document.by_id('agent-help-banner')
         self.assertEqual(len(banner), 1)
-        self.assertTrue(any('sticky' in element['attrs'].get('class', '').split()
+        self.assertFalse(any('sticky' in element['attrs'].get('class', '').split()
                             for element in [banner[0], *banner[0]['parents']]))
         dismiss = document.by_id('dismiss-agent-help')
         self.assertEqual(len(dismiss), 1)

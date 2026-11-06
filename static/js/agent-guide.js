@@ -7,7 +7,7 @@
         // mobile. Keep the guide's section headings below the real stack.
         const updateAnchorOffset = () => {
             document.documentElement.style.setProperty('--liquidity-sticky-offset',
-                `${Math.ceil(noticeStack.getBoundingClientRect().height) + 16}px`);
+                `${(noticeStack.dataset.sticky === 'true' ? Math.ceil(noticeStack.getBoundingClientRect().height) : 0) + 16}px`);
         };
         updateAnchorOffset();
         window.addEventListener('resize', updateAnchorOffset);

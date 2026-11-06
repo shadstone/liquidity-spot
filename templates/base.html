@@ -24,151 +24,14 @@
             }
         }
     </script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/usability.css') }}">
 </head>
 <body class="bg-gfa-dark text-white min-h-screen flex flex-col">
-    <nav class="bg-black/20 p-4">
-        <div class="container mx-auto flex justify-between items-center">
-            <a href="{{ url_for('main.index') }}" class="flex items-center gap-3 text-2xl font-bold text-gfa-light hover:opacity-80 transition min-w-0">
-                <img src="{{ url_for('static', filename='img/liquidity-spot.png') }}" alt="Liquidity.spot Logo" class="h-10 w-10 object-contain shrink-0">
-                Liquidity.spot
-            </a>
-            
-            <!-- Mobile Menu Button -->
-            <button id="mobile-menu-btn" class="md:hidden text-gfa-light focus:outline-none">
-                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
-                </svg>
-            </button>
+    <a href="#main-content" class="skip-link">Skip to content</a>
+    {% include '_navigation.html' %}
 
-            <!-- Desktop Menu -->
-            <div class="hidden md:flex items-center gap-6">
-                <a href="{{ url_for('main.p2p') }}" class="hover:text-gfa-light">P2P Marketplace</a>
-                <div class="group relative">
-                    <a href="{{ url_for('main.maker_mode') }}" class="hover:text-gfa-light">Maker Mode</a>
-                    <div class="pointer-events-none absolute left-1/2 top-full z-50 mt-2 hidden w-64 -translate-x-1/2 rounded-lg border border-gfa-light/30 bg-black/95 p-3 text-xs text-gfa-light shadow-xl group-hover:block">
-                        Standing offer concept for repeat makers. No custody and no pooled funds.
-                    </div>
-                </div>
-                <div class="group relative">
-                    <a href="{{ url_for('main.orders') }}" class="hover:text-gfa-light">Atomic Swaps</a>
-                    <div class="pointer-events-none absolute left-1/2 top-full z-50 mt-2 hidden w-56 -translate-x-1/2 rounded-lg border border-yellow-500/30 bg-black/95 p-3 text-xs text-yellow-100 shadow-xl group-hover:block">
-                        Experimental HTLC testing flow. Browse without login; sign in only to post or accept test orders.
-                    </div>
-                </div>
-                <a href="{{ url_for('main.tutorial') }}" class="hover:text-gfa-light">Tutorial</a>
-                <a href="{{ url_for('main.gems_guide') }}" class="hover:text-gfa-light">Gems</a>
-                <a href="{{ url_for('main.opensource') }}" class="hover:text-gfa-light">Open Source</a>
-                {% if session.get('user_id') %}
-                    <a href="{{ url_for('main.dashboard') }}" class="hover:text-gfa-light">Dashboard</a>
-                    <a href="{{ url_for('inquiries.inbox') }}" class="inline-flex items-center gap-1.5 hover:text-gfa-light">Inquiries{% if nav_inquiry_unread_count|default(0) > 0 %}<span class="rounded-full bg-gfa-light px-1.5 py-0.5 text-xs font-bold text-gfa-dark" aria-label="{{ nav_inquiry_unread_count }} unread inquiry messages">{{ nav_inquiry_unread_count }}</span>{% endif %}</a>
-                    {% if session.get('tier') == 'team' %}
-                        <a href="{{ url_for('admin.credit') }}" class="hover:text-gfa-light">Admin</a>
-                    {% endif %}
-                    <div class="ml-4 flex items-center gap-4">
-                    <div class="group relative">
-                        <button type="button" class="relative text-gfa-grey hover:text-gfa-light focus:outline-none" aria-label="Notifications">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V4a2 2 0 10-4 0v1.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0a3 3 0 11-6 0m6 0H9"></path>
-                            </svg>
-                            {% if nav_notification_count > 0 %}
-                                <span class="absolute -top-2 -right-2 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
-                                    {{ nav_notification_count }}
-                                </span>
-                            {% endif %}
-                        </button>
-                        <div class="absolute right-0 top-full z-50 mt-1 hidden w-72 rounded-lg border border-gfa-grey/20 bg-black/95 p-3 text-sm text-gfa-grey shadow-xl group-hover:block group-focus-within:block">
-                            <p class="font-bold text-white mb-2">Notifications</p>
-                            {% if nav_notifications %}
-                                <div class="space-y-2">
-                                    {% for notification in nav_notifications %}
-                                        <a href="{{ url_for('main.p2p_trade_room', trade_id=notification.trade_id) }}" class="block rounded p-2 hover:bg-white/5">
-                                            <p class="text-white">Trade #{{ notification.trade_id }}</p>
-                                            <p class="text-xs text-gfa-grey">{{ notification.reason }} | {{ notification.status }} / {{ notification.milestone }}</p>
-                                        </a>
-                                    {% endfor %}
-                                </div>
-                            {% else %}
-                                <p class="text-xs">No new notifications.</p>
-                            {% endif %}
-                        </div>
-                    </div>
-                    <details class="relative">
-                        <summary class="list-none cursor-pointer rounded-lg border border-gfa-grey/20 bg-black/20 px-3 py-2 text-sm text-gfa-grey hover:text-gfa-light hover:border-gfa-grey/40 transition">
-                            <span>Welcome {{ session.get('username', 'user') }}</span>
-                            {% if current_user %}
-                                <span class="ml-2 text-gfa-light">{{ current_user.gems_balance }} 💎</span>
-                            {% endif %}
-                            <span class="ml-2 text-xs">▾</span>
-                        </summary>
-                        <div class="absolute right-0 top-full z-50 mt-2 w-56 rounded-lg border border-gfa-grey/20 bg-black/95 p-2 text-sm text-gfa-grey shadow-xl">
-                            <a href="{{ url_for('main.profile') }}" class="block rounded px-3 py-2 hover:bg-white/5 hover:text-gfa-light">View Profile</a>
-                            <a href="{{ url_for('main.activity') }}" class="block rounded px-3 py-2 hover:bg-white/5 hover:text-gfa-light">Activity</a>
-                            <a href="{{ url_for('main.dashboard') }}" class="block rounded px-3 py-2 hover:bg-white/5 hover:text-gfa-light">Dashboard</a>
-                            <a href="{{ url_for('agents.workspace') }}" class="block rounded px-3 py-2 hover:bg-white/5 hover:text-gfa-light">Agent workspace</a>
-                            {% if session.get('auth_method') == 'guest' %}
-                                <a href="{{ url_for('auth.guest_recovery') }}" class="block rounded px-3 py-2 hover:bg-white/5 hover:text-gfa-light">Guest Recovery Key</a>
-                                <a href="{{ url_for('auth.login') }}" class="block rounded px-3 py-2 text-gfa-light hover:bg-white/5 hover:text-white">Connect GFAVIP for Gems</a>
-                            {% endif %}
-                            {% if session.get('tier') == 'team' %}
-                                <a href="{{ url_for('admin.credit') }}" class="block rounded px-3 py-2 hover:bg-white/5 hover:text-gfa-light">Admin</a>
-                            {% endif %}
-                            <a href="{{ url_for('auth.logout') }}" class="block rounded px-3 py-2 text-red-400 hover:bg-white/5 hover:text-red-300">Logout</a>
-                        </div>
-                    </details>
-                    </div>
-                {% else %}
-                    <a href="{{ url_for('auth.login') }}" class="bg-gfa-light text-gfa-dark px-4 py-2 rounded font-bold hover:bg-white transition">Optional GFAVIP Login</a>
-                {% endif %}
-            </div>
-        </div>
-
-        <!-- Mobile Menu (Hidden by default) -->
-        <div id="mobile-menu" class="hidden md:hidden mt-4 bg-black/90 p-4 rounded-lg border border-gfa-grey/20">
-            <div class="flex flex-col space-y-4">
-                {% if session.get('user_id') %}
-                    <div class="text-sm text-gfa-grey">
-                        Welcome {{ session.get('username', 'user') }}
-                        {% if current_user %}
-                            <span class="ml-2 text-gfa-light">{{ current_user.gems_balance }} 💎</span>
-                        {% endif %}
-                    </div>
-                    <a href="{{ url_for('main.dashboard') }}" class="hover:text-gfa-light">Notifications{% if nav_notification_count > 0 %} ({{ nav_notification_count }}){% endif %}</a>
-                    <a href="{{ url_for('main.dashboard') }}" class="hover:text-gfa-light">Dashboard</a>
-                    <a href="{{ url_for('inquiries.inbox') }}" class="hover:text-gfa-light">Private inquiries{% if nav_inquiry_unread_count|default(0) > 0 %} <span class="rounded-full bg-gfa-light px-2 py-0.5 text-xs font-bold text-gfa-dark">{{ nav_inquiry_unread_count }} unread</span>{% endif %}</a>
-                    <a href="{{ url_for('main.profile') }}" class="hover:text-gfa-light">Profile</a>
-                    <a href="{{ url_for('main.activity') }}" class="hover:text-gfa-light">Activity</a>
-                    <a href="{{ url_for('agents.workspace') }}" class="hover:text-gfa-light">Agent workspace</a>
-                    {% if session.get('auth_method') == 'guest' %}
-                        <a href="{{ url_for('auth.guest_recovery') }}" class="hover:text-gfa-light">Guest Recovery Key</a>
-                        <a href="{{ url_for('auth.login') }}" class="hover:text-gfa-light">Connect GFAVIP for Gems</a>
-                    {% endif %}
-                {% endif %}
-                <a href="{{ url_for('main.p2p') }}" class="hover:text-gfa-light">P2P Marketplace</a>
-                <a href="{{ url_for('main.maker_mode') }}" class="hover:text-gfa-light">Maker Mode</a>
-                <a href="{{ url_for('main.orders') }}" class="hover:text-gfa-light">Atomic Swaps (Experimental)</a>
-                <a href="{{ url_for('main.tutorial') }}" class="hover:text-gfa-light">Tutorial</a>
-                <a href="{{ url_for('main.gems_guide') }}" class="hover:text-gfa-light">What are Gems?</a>
-                <a href="{{ url_for('main.opensource') }}" class="hover:text-gfa-light">Open Source</a>
-                {% if session.get('user_id') %}
-                    {% if session.get('tier') == 'team' %}
-                        <a href="{{ url_for('admin.credit') }}" class="hover:text-gfa-light">Admin</a>
-                    {% endif %}
-                    <a href="{{ url_for('auth.logout') }}" class="text-red-400 hover:text-red-300">Logout</a>
-                {% else %}
-                    <a href="{{ url_for('auth.login') }}" class="bg-gfa-light text-gfa-dark px-4 py-2 rounded font-bold hover:bg-white transition text-center">Optional GFAVIP Login</a>
-                {% endif %}
-            </div>
-        </div>
-    </nav>
-
-    <script>
-        document.getElementById('mobile-menu-btn').addEventListener('click', function() {
-            const menu = document.getElementById('mobile-menu');
-            menu.classList.toggle('hidden');
-        });
-    </script>
-
-    <section id="trade-notice-stack" class="sticky top-0 z-40 border-y border-gfa-light/20 bg-black/90 backdrop-blur" aria-label="Trade notices and agent setup">
+    {% if guest_recovery_notice or hellobar_items %}
+    <section id="trade-notice-stack" data-sticky="{{ 'true' if guest_recovery_notice or hellobar_primary.user_is_next else 'false' }}" class="{{ 'sticky top-0' if guest_recovery_notice or hellobar_primary.user_is_next else '' }} z-40 border-y border-gfa-light/20 bg-black/90 backdrop-blur" aria-label="Trade notices">
         <div class="container mx-auto space-y-3 px-4 py-3">
             {% if guest_recovery_notice %}
                 <div class="flex flex-col gap-3 rounded border border-gfa-light/30 bg-gfa-light/10 p-3 sm:flex-row sm:items-center sm:justify-between">
@@ -190,7 +53,7 @@
                         <p class="text-xs uppercase tracking-wide {{ 'text-red-200' if hellobar_primary.user_is_next else 'text-gfa-light' }}">
                             {{ hellobar_count }} active {{ 'trade' if hellobar_count == 1 else 'trades' }}
                         </p>
-                        <p class="font-bold text-white truncate">
+                        <p class="font-bold text-white break-words">
                             {% if hellobar_primary.user_is_next %}
                                 Action needed:
                             {% else %}
@@ -210,40 +73,13 @@
                         </a>
                     </div>
                 </div>
-            {% elif not guest_recovery_notice and request.endpoint != 'agent_docs.agent_guide' %}
-                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <p class="text-sm text-gfa-grey">
-                        <strong class="text-white">No active trades yet.</strong>
-                        Browse available P2P offers or post an offer of your own.
-                    </p>
-                    <div class="flex flex-wrap gap-2">
-                        <a href="{{ url_for('main.swaps_index') }}" class="rounded bg-gfa-light px-3 py-1.5 text-sm font-bold text-gfa-dark hover:bg-white transition">
-                            View Atomic Swaps
-                        </a>
-                        <a href="{{ url_for('main.maker_mode') }}" class="rounded border border-gfa-light/30 px-3 py-1.5 text-sm font-bold text-gfa-light hover:bg-gfa-light/10 transition">
-                            View Maker Mode
-                        </a>
-                        <a href="{{ url_for('main.p2p') }}" class="rounded border border-gfa-light/30 px-3 py-1.5 text-sm font-bold text-gfa-light hover:bg-gfa-light/10 transition">
-                            P2P Marketplace
-                        </a>
-                    </div>
-                </div>
             {% endif %}
-            <aside id="agent-help-banner" aria-label="AI assistant setup" class="rounded-lg border border-gfa-light/30 bg-gfa-light/10">
-                <div class="flex items-center gap-2 pl-3 pr-1 sm:pl-4">
-                    <a href="{{ url_for('agent_docs.agent_guide') }}" class="flex min-h-[44px] min-w-0 flex-1 flex-wrap items-center justify-between gap-x-3 gap-y-0.5 py-2 text-sm font-bold text-white hover:text-gfa-light focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gfa-light">
-                        <span>Ask your AI agent to help</span>
-                        <span class="text-xs text-gfa-light">Setup guide <span aria-hidden="true">&rarr;</span></span>
-                    </a>
-                    <button id="dismiss-agent-help" type="button" aria-label="Hide AI assistant banner for this tab" class="h-11 w-11 shrink-0 rounded text-center leading-[44px] text-gfa-grey hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-gfa-light" hidden>
-                        <span aria-hidden="true">&times;</span>
-                    </button>
-                </div>
-            </aside>
+
         </div>
     </section>
 
-    <main class="container mx-auto flex-grow p-4">
+    {% endif %}
+    <main id="main-content" tabindex="-1" class="container mx-auto min-w-0 flex-grow p-4">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 <div class="mb-4">
@@ -278,6 +114,19 @@
         {% block content %}{% endblock %}
     </main>
 
+    <div class="container mx-auto px-4 pb-4">
+            <aside id="agent-help-banner" aria-label="AI assistant setup" class="rounded-lg border border-gfa-light/30 bg-gfa-light/10">
+                <div class="flex items-center gap-2 pl-3 pr-1 sm:pl-4">
+                    <a href="{{ url_for('agent_docs.agent_guide') }}" class="flex min-h-[44px] min-w-0 flex-1 flex-wrap items-center justify-between gap-x-3 gap-y-0.5 py-2 text-sm font-bold text-white hover:text-gfa-light focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gfa-light">
+                        <span>Ask your AI agent to help</span>
+                        <span class="text-xs text-gfa-light">Setup guide <span aria-hidden="true">&rarr;</span></span>
+                    </a>
+                    <button id="dismiss-agent-help" type="button" aria-label="Hide AI assistant banner for this tab" class="h-11 w-11 shrink-0 rounded text-center leading-[44px] text-gfa-grey hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-gfa-light" hidden>
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+            </aside>
+    </div>
     <footer class="bg-black/20 p-4 text-center text-gfa-grey mt-8">
         <div class="container mx-auto">
             <div class="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 mb-3 text-sm">

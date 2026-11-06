@@ -1,0 +1,28 @@
+<section id="publish-review" aria-labelledby="publish-review-title" class="space-y-5">
+    <h3 id="publish-review-title" class="text-2xl font-bold">Review and publish</h3>
+    <p class="text-gfa-grey">Check your exact terms. Nothing has been published or locked yet.</p>
+    {% set r = offer_review %}
+    <dl class="grid min-w-0 gap-4 rounded-xl border border-gfa-light/40 bg-black/30 p-4 sm:grid-cols-2">
+        <div class="min-w-0"><dt class="text-sm text-gfa-grey">You send</dt><dd class="trade-amount mt-1 text-xl font-bold">{{ r.amount ~ ' HNS' if r.side == 'sell' else r.total ~ ' ' ~ r.asset.symbol }}</dd><dd class="text-sm text-gfa-grey">{{ 'Handshake mainnet' if r.side == 'sell' else r.asset.network_label }}</dd></div>
+        <div class="min-w-0"><dt class="text-sm text-gfa-grey">You receive</dt><dd class="trade-amount mt-1 text-xl font-bold text-gfa-light">{{ r.amount ~ ' HNS' if r.side == 'buy' else r.total ~ ' ' ~ r.asset.symbol }}</dd><dd class="text-sm text-gfa-grey">{{ 'Handshake mainnet' if r.side == 'buy' else r.asset.network_label }}</dd></div>
+        <div class="min-w-0 sm:col-span-2"><dt class="text-sm text-gfa-grey">Rate</dt><dd class="trade-amount">{{ r.price }} {{ r.asset.symbol }} per HNS</dd></div>
+    </dl>
+    <div class="rounded-lg bg-black/25 p-4 text-sm text-gfa-grey">
+        <p class="font-bold text-white">{{ r.asset.label }}{% if r.asset.chain_id %} · Chain ID {{ r.asset.chain_id }}{% endif %}</p>
+        {% if r.asset.contract %}<p class="mt-2 break-all">Token contract (not a receiving address): <code>{{ r.asset.contract }}</code></p>{% endif %}
+        <p class="mt-2">Total rounded to token precision. Sender pays network fees separately; the recipient receives the agreed total. Payment sender needs {{ r.asset.gas_asset }} for network fees. There is no escrow or automatic bridge.</p>
+    </div>
+    <dl class="space-y-2 break-words text-sm">
+        <dt class="font-bold">Availability</dt><dd>{{ 'Until I cancel (no automatic expiry)' if r.expiry == 'never' else r.expiry ~ (' day' if r.expiry == '1' else ' days') ~ ' from publishing' }}</dd>
+        <dt class="font-bold">Payment method</dt><dd>{{ r.payment_method }}</dd>
+        <dt class="font-bold">Private questions before acceptance</dt><dd>{{ 'Allowed' if r.allow_questions else 'Off' }}</dd>
+        <dt class="font-bold">Public notes</dt><dd class="whitespace-pre-wrap">{{ form_values.get('notes') or 'None' }}</dd>
+        <dt class="font-bold">Gems bond</dt><dd>{% if r.gems %}{{ r.gems }} Gems will be locked when you publish. Your offer goes live only if the lock succeeds. GFAVIP login is required.{% else %}No Gems bond.{% endif %}</dd>
+    </dl>
+    <p class="text-sm text-yellow-100">Publishing makes these terms public. You must fulfill accepted trades manually. Expiry stops new acceptance, not matched trades, and does not refund a Gems bond; cancel an unmatched offer to request its return.</p>
+    <form method="POST" action="{{ url_for('main.create_p2p_offer') }}" class="flex flex-col gap-3 sm:flex-row">
+        {% for name, value in form_values.items() %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+        <button type="submit" name="_form_action" value="edit" class="rounded-lg border border-gfa-light/40 px-5 py-3 font-bold">← Edit details</button>
+        <button type="submit" name="_form_action" value="publish" class="rounded-lg bg-gfa-light px-5 py-3 font-bold text-gfa-dark hover:bg-white">{% if r.gems %}Lock {{ r.gems }} Gems &amp; publish offer{% else %}Publish offer{% endif %}</button>
+    </form>
+</section>

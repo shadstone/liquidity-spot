@@ -5,13 +5,13 @@
 <dl class="grid min-w-0 gap-4 sm:grid-cols-2">
     <div class="min-w-0 rounded-lg bg-gfa-light/10 p-4">
         <dt class="text-sm text-gfa-grey">You receive</dt>
-        <dd class="mt-1 break-words text-2xl font-bold text-white">{{ format_decimal(offer.settlement_amount_hns) ~ ' HNS' if receiving_hns else format_decimal(offer.quote_total) ~ ' ' ~ offer.quote_asset }}</dd>
+        <dd class="mt-1 trade-amount text-2xl font-bold text-white">{{ format_decimal(offer.settlement_amount_hns) ~ ' HNS' if receiving_hns else format_decimal(offer.quote_total) ~ ' ' ~ offer.quote_asset }}</dd>
         <dd class="mt-1 text-sm text-gfa-light">{{ 'Handshake mainnet' if receiving_hns else offer.payment_asset.network_label }}</dd>
     </div>
     <div class="min-w-0 rounded-lg bg-black/30 p-4">
         <dt class="text-sm text-gfa-grey">You pay</dt>
-        <dd class="mt-1 break-words text-2xl font-bold text-white">{{ format_decimal(offer.quote_total) ~ ' ' ~ offer.quote_asset if receiving_hns else format_decimal(offer.settlement_amount_hns) ~ ' HNS' }}</dd>
+        <dd class="mt-1 trade-amount text-2xl font-bold text-white">{{ format_decimal(offer.quote_total) ~ ' ' ~ offer.quote_asset if receiving_hns else format_decimal(offer.settlement_amount_hns) ~ ' HNS' }}</dd>
         <dd class="mt-1 text-sm text-gfa-light">{{ offer.payment_asset.network_label if receiving_hns else 'Handshake mainnet' }}</dd>
     </div>
 </dl>
-<p class="mt-3 break-words text-sm text-gfa-grey">Rate: {{ format_decimal(offer.quote_price) }} {{ offer.quote_asset }}/HNS · Network fees extra. Full listed amount; no partial fill.</p>
+<p class="mt-3 trade-amount text-sm text-gfa-grey">Rate: {{ format_decimal(offer.quote_price) }} {{ offer.quote_asset }}/HNS · Network fees extra. Full listed amount; no partial fill.</p>

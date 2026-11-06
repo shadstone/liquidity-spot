@@ -7,7 +7,8 @@
 <section class="mx-auto max-w-2xl rounded-xl border border-gfa-grey/20 bg-black/30 p-5 sm:p-7">
 <h2 class="mb-2 text-2xl font-bold text-white">Post an offer</h2>
 <p class="mb-5 text-sm text-gfa-grey">Manual P2P · no escrow. Set the exact terms you are willing to honor. Posting does not send HNS or payment assets. An optional Gems bond is locked immediately.</p>
-{% include '_p2p_create_offer.html' %}
+<ol aria-label="Posting steps" class="mb-5 flex flex-wrap gap-3 text-sm text-gfa-grey"><li {{ 'aria-current=step' if not offer_review else '' }}>1. Trade details</li><li>2. Optional settings</li><li {{ 'aria-current=step' if offer_review else '' }}>3. Review and publish</li></ol>
+{% if offer_review %}{% include '_p2p_publish_review.html' %}{% else %}{% include '_p2p_create_offer.html' %}{% endif %}
 </section>
 {% endif %}
 {% if marketplace_view == 'mine' and session.get('user_id') %}
@@ -64,13 +65,13 @@
 
 {% if pagination and pagination.pages > 1 %}
 <nav aria-label="Results pages" class="flex flex-wrap items-center justify-between gap-3 text-gfa-light">
-{% if pagination.has_prev %}<a class="rounded border border-gfa-light/40 px-4 py-3" href="{{ url_for('main.p2p', view=marketplace_view, intent=intent, payment_asset=selected_payment_asset, page=pagination.prev_num) }}">← Previous</a>{% endif %}
+{% if pagination.has_prev %}<a class="rounded border border-gfa-light/40 px-4 py-3" href="{{ url_for('main.p2p', view=marketplace_view, intent=intent, payment_asset=selected_payment_asset, min_hns=min_hns, max_hns=max_hns, sort=sort, page=pagination.prev_num) }}">← Previous</a>{% endif %}
 <span class="text-sm text-gfa-grey">Page {{ pagination.page }} of {{ pagination.pages }}</span>
-{% if pagination.has_next %}<a class="rounded border border-gfa-light/40 px-4 py-3" href="{{ url_for('main.p2p', view=marketplace_view, intent=intent, payment_asset=selected_payment_asset, page=pagination.next_num) }}">Next →</a>{% endif %}
+{% if pagination.has_next %}<a class="rounded border border-gfa-light/40 px-4 py-3" href="{{ url_for('main.p2p', view=marketplace_view, intent=intent, payment_asset=selected_payment_asset, min_hns=min_hns, max_hns=max_hns, sort=sort, page=pagination.next_num) }}">Next →</a>{% endif %}
 </nav>
 {% endif %}
 </div>
-{% if marketplace_view == 'post' %}
+{% if marketplace_view == 'post' and not offer_review %}
 <script>
     const p2pMarketPrice = {{ format_decimal(current_price)|tojson }};
     const p2pPaymentAssets = {{ payment_assets|tojson }};
@@ -152,6 +153,11 @@
         const asset = selectedPaymentAsset();
         const total = exactTransferTotal(document.getElementById('p2p-amount').value, document.getElementById('p2p-price').value, asset.decimals);
         document.getElementById('p2p-total-btc').textContent = total === null ? 'Enter amount and price' : `${total} ${asset.symbol}`;
+        const hns = `${document.getElementById('p2p-amount').value.trim()} HNS · Handshake mainnet`;
+        const payment = `${total} ${asset.symbol} · ${asset.network_label}`;
+        const sells = document.getElementById('p2p-side').value === 'sell';
+        document.getElementById('p2p-you-send').textContent = total === null ? 'Enter amount and price' : (sells ? hns : payment);
+        document.getElementById('p2p-you-receive').textContent = total === null ? 'Enter amount and price' : (sells ? payment : hns);
     }
 
     function updateP2PGemsBond() {
@@ -164,9 +170,7 @@
         const amount = Math.max(0, parseInt(input.value, 10) || 0);
         summary.classList.toggle('hidden', amount === 0);
         amountLabel.textContent = `${amount} ${amount === 1 ? 'Gem' : 'Gems'}`;
-        submitLabel.textContent = amount > 0
-            ? `Lock ${amount} ${amount === 1 ? 'Gem' : 'Gems'} & Post Offer`
-            : 'Post Offer & Share';
+        submitLabel.textContent = 'Review offer →';
     }
 
     function reuseLastP2PListing() {
@@ -186,6 +190,8 @@
         document.getElementById('p2p-payment-method').value = data.payment_method || 'Manual Wallet Transfer';
         document.getElementById('p2p-gems-stake').value = data.gems_stake || '';
         document.getElementById('p2p-notes').value = data.notes || '';
+        document.getElementById('p2p-expiry').value = ['1', '7', '30', 'never'].includes(data.expiry) ? data.expiry : '7';
+        document.getElementById('p2p-allow-pretrade-chat').checked = data.allow_pretrade_chat !== false;
         updateP2PPaymentAsset();
         updateP2PGemsBond();
     }
@@ -200,14 +206,23 @@
         document.getElementById('p2p-gems-stake').value = '';
         document.getElementById('p2p-notes').value = '';
         document.getElementById('p2p-expiry').value = '7';
+        document.getElementById('p2p-allow-pretrade-chat').checked = true;
         updateP2PPaymentAsset();
         updateP2PGemsBond();
     }
 
     const p2pOfferForm = document.getElementById('p2p-offer-form');
     if (p2pOfferForm) {
+        p2pOfferForm.querySelectorAll('[data-p2p-enhanced]').forEach(control => { control.hidden = false; });
+        const errorSummary = document.getElementById('offer-form-error');
+        if (errorSummary) errorSummary.focus();
+        p2pOfferForm.addEventListener('invalid', (event) => {
+            const settings = event.target.closest('details');
+            if (settings) settings.open = true;
+        }, true);
         document.getElementById('p2p-amount').addEventListener('input', updateP2PTotal);
         document.getElementById('p2p-price').addEventListener('input', updateP2PTotal);
+        document.getElementById('p2p-side').addEventListener('change', updateP2PTotal);
         document.getElementById('p2p-payment-asset').addEventListener('change', () => updateP2PPaymentAsset(true));
         document.getElementById('p2p-gems-stake').addEventListener('input', updateP2PGemsBond);
         p2pOfferForm.addEventListener('submit', function() {
@@ -218,7 +233,9 @@
                 price: document.getElementById('p2p-price').value,
                 payment_method: document.getElementById('p2p-payment-method').value,
                 gems_stake: document.getElementById('p2p-gems-stake').value,
-                notes: document.getElementById('p2p-notes').value
+                notes: document.getElementById('p2p-notes').value,
+                expiry: document.getElementById('p2p-expiry').value,
+                allow_pretrade_chat: document.getElementById('p2p-allow-pretrade-chat').checked
             })); } catch { /* Saving a convenience draft must not block posting. */ }
         });
 
