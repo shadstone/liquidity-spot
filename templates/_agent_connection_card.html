@@ -1,0 +1,30 @@
+            <li class="flex flex-col gap-3 rounded-xl border border-gfa-grey/15 bg-black/25 p-4">
+                <div class="min-w-0">
+                    <h3 class="break-words text-lg font-bold text-white">{{ connection.label }}</h3>
+                    <p class="mt-1 text-sm font-bold {{ 'text-gfa-light' if connection.is_active else 'text-gfa-grey' }}">{{ 'Revoked' if connection.revoked_at else ('Access approved' if connection.is_active else 'Expired') }} · {{ profiles.get(connection.profile_id, {'label': 'Unknown or unavailable profile'}).label }}</p>
+                </div>
+                <dl class="grid min-w-0 gap-4 text-sm sm:grid-cols-2">
+                    <div><dt class="font-bold text-white">Approved permissions</dt><dd class="mt-1 text-gfa-grey"><ul class="list-disc pl-5">{% for scope in connection.scope_list %}<li>{{ {'events:read': 'Read trade events', 'trades:read': 'Read your trade terms', 'trade_messages:read': 'Read private trade-room messages', 'offers:read': 'Read offer records', 'maker:write': 'Publish and cancel its own offers within approved limits; replies only if allowed below', 'drafts:read': 'Read private offer drafts', 'drafts:write': 'Prepare private offer drafts', 'listings:read': 'Read public listings', 'inquiries:read': 'Read its authorized listing conversations', 'inquiries:write': 'Ask and reply in authorized listing conversations'}.get(scope, scope) }}</li>{% endfor %}</ul></dd></div>
+                    <div><dt class="font-bold text-white">Access expires</dt><dd class="mt-1 text-gfa-grey"><time datetime="{{ connection.expires_at.isoformat() }}Z">{{ connection.expires_at.strftime('%Y-%m-%d %H:%M') }} UTC</time>{% if connection.revoked_at %} · already revoked{% endif %}</dd></div>
+                    <div><dt class="font-bold text-white">Last recorded API activity</dt><dd class="mt-1 text-gfa-grey">{% if connection.last_used_at %}<time datetime="{{ connection.last_used_at.isoformat() }}Z">{{ connection.last_used_at.strftime('%Y-%m-%d %H:%M:%S') }} UTC</time>{% else %}No API activity recorded yet{% endif %}</dd></div>
+                    {% if connection.profile_id != 'maker-assistant' %}<div><dt class="font-bold text-white">Publishing allowance</dt><dd class="mt-1 text-gfa-grey">Cannot publish offers with this connection.</dd></div>{% endif %}
+                </dl>
+                <details class="text-xs text-gfa-grey"><summary class="cursor-pointer py-3">Connection #{{ connection.id }} · {{ 'GFAVIP SSO grant' if grant else 'Scoped-token fallback' }} · technical details</summary>{% if grant %}<p class="break-all">Agent Wallet UUID: <code>{{ grant.agent_gfavip_user_id }}</code></p>{% endif %}<p class="mt-2 break-all font-mono">{{ connection.scope }}</p></details>
+                {% if connection.profile_id == 'maker-assistant' %}
+                {% set maker_status = maker_statuses.get(connection.id) %}
+                <div class="rounded-lg border border-yellow-500/25 p-4 text-gfa-grey">
+                    {% if maker_status_errors and connection.id in maker_status_errors %}<p class="text-sm text-yellow-100">Approved limits are unavailable. Writes are blocked; revoke this connection and review a new one.</p>
+                    {% else %}
+                    {% if maker_status and maker_status.usage %}<p class="trade-amount font-bold text-white">{{ maker_status.usage.remaining_hns }} HNS publishing allowance remaining</p><p class="mt-1 text-xs">Lifetime allowance, not a wallet balance. {% if not maker_status.enabled %}Writes are currently unavailable.{% endif %}</p>{% endif %}
+                    <details class="mt-3"><summary class="cursor-pointer py-2 font-bold text-white">Approved limits and usage</summary>{{ maker_policy_summary(maker_status) }}</details>
+                    {% endif %}
+                </div>
+                <p class="text-sm text-yellow-100">Revoking or expiring this connection stops future API writes. Existing public offers stay open and pending trades are not resolved. <a href="{{ url_for('main.p2p') }}" class="font-bold underline">Review the P2P board</a> and cancel any remaining open offers separately.</p>
+                {% endif %}
+                {% if not connection.revoked_at %}
+                <form method="POST" action="{{ url_for('agents.revoke_connection', connection_id=connection.id) }}" class="shrink-0">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="w-full rounded-lg border border-red-400/40 px-4 py-2 text-sm font-bold text-red-100 hover:bg-red-950/30">Revoke access</button>
+                </form>
+                {% endif %}
+            </li>

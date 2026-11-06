@@ -1,0 +1,13 @@
+[hidden] { display: none !important; }
+:root { --liquidity-sticky-offset: 1rem; }
+:focus-visible { outline: 3px solid #fef08a !important; outline-offset: 4px; }
+html { scroll-padding-top: var(--liquidity-sticky-offset); }
+.skip-link { position: absolute; top: .5rem; left: .5rem; z-index: 100; transform: translateY(-200%); padding: .75rem; background: #000; color: #fff; }
+.skip-link:focus { transform: translateY(0); }
+.site-navigation a, .site-navigation summary, .site-navigation button { min-height: 44px; align-content: center; }
+.site-navigation details a, #mobile-menu > a { display: block; padding: .6rem; }
+.site-navigation [aria-current="page"] { text-decoration: underline; text-underline-offset: .4rem; }
+#p2p-offer-form button, #p2p-offer-form input:not([type="checkbox"]), #p2p-offer-form select { min-height: 44px; }
+#p2p-offer-form fieldset { min-width: 0; }
+.trade-amount, [data-maker-policy] dd, #agent-overview dd { overflow-wrap: anywhere; min-width: 0; }
+.trade-amount { font-variant-numeric: tabular-nums; }

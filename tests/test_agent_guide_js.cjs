@@ -12,7 +12,7 @@ function element(properties = {}) {
         ...properties };
 }
 
-function boot({ stored = null, storageBlocked = false, clipboard = undefined, empty = false, stackHeight = null } = {}) {
+function boot({ stored = null, storageBlocked = false, clipboard = undefined, empty = false, stackHeight = null, sticky = true } = {}) {
     const saved = [];
     const offsets = [];
     const resizeCallbacks = [];
@@ -25,7 +25,7 @@ function boot({ stored = null, storageBlocked = false, clipboard = undefined, em
         'copy-agent-status': element(),
     };
     if (stackHeight !== null) {
-        elements['trade-notice-stack'] = element({ height: stackHeight,
+        elements['trade-notice-stack'] = element({ height: stackHeight, dataset: { sticky: String(sticky) },
             getBoundingClientRect() { return { height: this.height }; } });
     }
     vm.runInNewContext(source, {
@@ -95,3 +95,8 @@ for (const [name, clipboard] of [
         assert.doesNotMatch(elements['copy-agent-status'].textContent, /Prompt copied/);
     });
 }
+
+test('passive trade notices do not reserve a sticky offset', () => {
+    const { offsets } = boot({ stackHeight: 300, sticky: false });
+    assert.deepEqual(offsets[0], ['--liquidity-sticky-offset', '16px']);
+});

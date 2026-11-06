@@ -120,6 +120,26 @@
         </div>
     </header>
 
+    <section id="agent-overview" aria-labelledby="agent-overview-title" class="rounded-2xl border border-gfa-grey/20 bg-black/30 p-5 md:p-7">
+        <h2 id="agent-overview-title" class="text-2xl font-bold">Your assistant access</h2>
+        <p class="mt-2 text-sm text-gfa-grey">Approval grants permission; it does not start a bot. API activity is the latest use recorded for each connection, not a heartbeat or proof that your runtime is running now. Refresh this page to check again.</p>
+        {% if connections %}
+        {% set approved = connections|selectattr('is_active')|list %}
+        {% set previous = connections|rejectattr('is_active')|list %}
+        {% if approved %}
+        <ul class="mt-6 space-y-3">
+            {% for connection in approved %}{% set grant = grants_by_connection.get(connection.id) %}{% include '_agent_connection_card.html' %}{% endfor %}
+        </ul>
+        {% else %}<p class="mt-5 text-sm text-gfa-grey">No current access approvals. Review a new setup below if you want to reconnect an assistant.</p>{% endif %}
+        {% if previous %}
+        <details class="mt-5 rounded-xl border border-gfa-grey/20 p-4"><summary class="cursor-pointer py-2 font-bold">Expired or revoked connections ({{ previous|length }})</summary>
+        <ul class="mt-4 space-y-3">{% for connection in previous %}{% set grant = grants_by_connection.get(connection.id) %}{% include '_agent_connection_card.html' %}{% endfor %}</ul>
+        </details>
+        {% endif %}
+        {% else %}<p class="mt-5 text-sm text-gfa-grey">No agent connections. Your existing offers and trades are unchanged.</p>{% endif %}
+        <p class="mt-4 text-xs text-gfa-grey">Existing connections keep their original permissions and sign-in method. To change access, revoke and create a new connection with your chosen profile. Revocation stops future API access but cannot erase data your agent already received; it does not cancel offers or trades.</p>
+    </section>
+
     {% include '_trading_assistant_setup.html' %}
 
     <details id="agent-reference-tools" class="rounded-2xl border border-gfa-grey/20 bg-black/25 p-5">
@@ -302,28 +322,6 @@
         <p class="mt-3 text-xs text-yellow-100">Never paste a PowerLobster key, SSO token, recovery key or seed phrase into these forms. <a href="/skill.md" class="font-bold text-gfa-light hover:text-white">Agent setup guide ↗</a></p>
         <p class="mt-2 text-xs text-gfa-grey">Up to {{ limits.connections }} active connections; grants and fallback tokens expire after {{ limits.token_days }} days. SSO approval shows the connection ID. Only the fallback shows a private token once; save that token before returning.</p>
         </div></details>
-        {% if connections %}
-        <ul class="mt-6 space-y-3">
-            {% for connection in connections %}
-            {% set grant = grants_by_connection.get(connection.id) %}
-            <li class="flex flex-col gap-3 rounded-xl border border-gfa-grey/15 bg-black/25 p-4">
-                <div class="min-w-0"><p class="break-words font-bold text-white">{{ connection.label }}</p><p class="mt-1 text-xs font-bold text-gfa-light">Connection #{{ connection.id }} · {{ 'GFAVIP SSO grant' if grant else 'Scoped-token fallback' }}</p>{% if grant %}<p class="mt-1 break-all text-xs text-gfa-grey">Agent Wallet UUID: <code>{{ grant.agent_gfavip_user_id }}</code></p>{% endif %}<p class="mt-1 text-xs text-gfa-grey">{% if connection.revoked_at %}Revoked{% elif not connection.is_active %}Expired{% else %}Expires {{ connection.expires_at.strftime('%Y-%m-%d %H:%M') }} UTC{% endif %} · {{ profiles.get(connection.profile_id, {'label': 'Unknown or unavailable profile'}).label }}</p><p class="mt-1 break-words font-mono text-xs text-gfa-light">{{ connection.scope }}</p><p class="mt-1 text-xs text-gfa-grey">Last used: {{ connection.last_used_at.strftime('%Y-%m-%d %H:%M') ~ ' UTC' if connection.last_used_at else 'Never' }}</p></div>
-                {% if connection.profile_id == 'maker-assistant' %}
-                {% set maker_status = maker_statuses.get(connection.id) %}
-                <div class="rounded-lg border border-yellow-500/25 p-4 text-gfa-grey"><h3 class="font-bold text-white">Approved limits and usage</h3>{% if maker_status_errors and connection.id in maker_status_errors %}<p class="mt-3 text-sm text-yellow-100">Approved limits are unavailable. Writes are blocked; revoke this connection and review a new one.</p>{% else %}{{ maker_policy_summary(maker_status) }}{% endif %}</div>
-                <p class="text-sm text-yellow-100">Revoking or expiring this connection stops future API writes. Existing public offers stay open and pending trades are not resolved. <a href="{{ url_for('main.p2p') }}" class="font-bold underline">Review the P2P board</a> and cancel any remaining open offers separately.</p>
-                {% endif %}
-                {% if not connection.revoked_at %}
-                <form method="POST" action="{{ url_for('agents.revoke_connection', connection_id=connection.id) }}" class="shrink-0">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <button type="submit" class="w-full rounded-lg border border-red-400/40 px-4 py-2 text-sm font-bold text-red-100 hover:bg-red-950/30">Revoke access</button>
-                </form>
-                {% endif %}
-            </li>
-            {% endfor %}
-        </ul>
-        {% else %}<p class="mt-5 text-sm text-gfa-grey">No agent connections. Your existing offers and trades are unchanged.</p>{% endif %}
-        <p class="mt-4 text-xs text-gfa-grey">Existing connections keep their original permissions and sign-in method. To change access, revoke and create a new connection with your chosen profile. Revocation stops future API access but cannot erase data your agent already received; it does not cancel offers or trades.</p>
     </section>
 
     <details class="rounded-2xl border border-gfa-grey/20 bg-black/30 p-5 md:p-7">

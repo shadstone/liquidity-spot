@@ -7,7 +7,6 @@
         </div>
         <a href="{{ url_for('main.p2p', view='post') }}" class="shrink-0 rounded-lg bg-gfa-light px-5 py-3 text-center font-bold text-gfa-dark hover:bg-white">Post an offer</a>
     </div>
-    <p class="mt-4 text-sm text-gfa-grey">Looking for wallet-enforced HNS/BTC swaps? <a href="{{ url_for('main.orders') }}" class="font-bold text-gfa-light underline">Atomic swap · experimental · HNS/BTC →</a></p>
 </header>
 
 <nav aria-label="Marketplace views" class="flex flex-wrap gap-2">
@@ -23,6 +22,7 @@
         <p class="mt-2 text-sm text-gfa-grey">{% if marketplace_view == 'past' %}Original public listing terms only. Matched, canceled and expired listings cannot be taken here. A matched listing is not proof of a completed trade; private rooms and payment details remain private.{% else %}Choose what you want to do. Buy HNS shows sellers; Sell HNS shows buyers. Listings are not verified balances or guaranteed execution.{% endif %}</p>
     </div>
     <form method="GET" action="{{ url_for('main.p2p') }}" class="rounded-xl border border-gfa-grey/20 bg-black/25 p-4">
+        {% if filter_error %}<p role="alert" class="mb-4 rounded-lg border border-red-300/40 p-3 text-red-100">{{ filter_error }}</p>{% endif %}
         <input type="hidden" name="view" value="{{ marketplace_view }}">
         <fieldset class="flex flex-wrap gap-3">
             <legend class="mb-2 text-sm font-bold text-white">I want to</legend>
@@ -32,8 +32,16 @@
         </fieldset>
         <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
             <div class="min-w-0 flex-1"><label for="payment-filter" class="mb-2 block text-sm font-bold text-white">Payment asset + network</label><select id="payment-filter" name="payment_asset" class="w-full rounded-lg border border-gfa-grey/30 bg-black/50 p-3 text-white"><option value="">All supported payments</option>{% for asset in payment_assets %}<option value="{{ asset.id }}" {{ 'selected' if selected_payment_asset == asset.id else '' }}>{{ asset.label }}</option>{% endfor %}</select></div>
-            <button type="submit" class="rounded-lg bg-gfa-light px-5 py-3 font-bold text-gfa-dark hover:bg-white">Show offers</button>
         </div>
+        <div class="mt-4 grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div class="min-w-0"><label for="min-hns" class="mb-2 block text-sm font-bold">Minimum HNS</label><input id="min-hns" name="min_hns" type="text" inputmode="decimal" value="{{ min_hns }}" placeholder="Any amount" class="w-full rounded-lg border border-gfa-grey/30 bg-black/50 p-3" aria-describedby="amount-filter-help"></div>
+            <div class="min-w-0"><label for="max-hns" class="mb-2 block text-sm font-bold">Maximum HNS</label><input id="max-hns" name="max_hns" type="text" inputmode="decimal" value="{{ max_hns }}" placeholder="Any amount" class="w-full rounded-lg border border-gfa-grey/30 bg-black/50 p-3" aria-describedby="amount-filter-help"></div>
+            <div class="min-w-0"><label for="offer-sort" class="mb-2 block text-sm font-bold">Sort offers</label><select id="offer-sort" name="sort" class="w-full rounded-lg border border-gfa-grey/30 bg-black/50 p-3" aria-describedby="rate-sort-help">{% for value, label in [('newest', 'Newest first'), ('rate_asc', 'Lowest rate per HNS'), ('rate_desc', 'Highest rate per HNS')] %}<option value="{{ value }}" {{ 'selected' if sort == value else '' }}>{{ label }}</option>{% endfor %}</select></div>
+        </div>
+        <p id="amount-filter-help" class="mt-3 text-xs text-gfa-grey">Filters match the whole listing amount, including both bounds. Partial fills are not supported.</p>
+        <p id="rate-sort-help" class="mt-2 text-xs text-gfa-grey">To compare rates, choose one side and one payment asset + network. Lower rates favor HNS buyers; higher rates favor HNS sellers. Rates exclude network fees.</p>
+        <div class="mt-4 flex flex-wrap items-center gap-4"><button type="submit" class="rounded-lg bg-gfa-light px-5 py-3 font-bold text-gfa-dark hover:bg-white">Show offers</button><a href="{{ url_for('main.p2p', view=marketplace_view) }}" class="px-2 py-3 text-sm text-gfa-light underline">Clear filters</a></div>
+        {% if sort_notice %}<p role="status" class="mt-3 text-sm text-yellow-100">{{ sort_notice }}</p>{% endif %}
     </form>
     <p role="status" class="text-sm text-gfa-grey">{{ pagination.total }} {{ 'available offer' if marketplace_view == 'available' else 'past listing' }}{{ '' if pagination.total == 1 else 's' }} matching these filters.</p>
     <div class="grid min-w-0 gap-5 lg:grid-cols-2">
@@ -50,7 +58,7 @@
             {% if marketplace_view == 'available' %}
                 {% include '_p2p_offer_summary.html' %}
             {% else %}
-                <p class="break-words text-lg font-bold text-white">{{ format_decimal(offer.settlement_amount_hns) }} HNS for {{ format_decimal(offer.quote_total) }} {{ offer.quote_asset }}</p>
+                <p class="trade-amount text-lg font-bold text-white">{{ format_decimal(offer.settlement_amount_hns) }} HNS for {{ format_decimal(offer.quote_total) }} {{ offer.quote_asset }}</p>
                 <p class="text-sm text-gfa-grey">Original rate: {{ format_decimal(offer.quote_price) }} {{ offer.quote_asset }}/HNS · {{ offer.payment_asset.network_label }}</p>
             {% endif %}
             {% include '_p2p_offer_freshness.html' %}

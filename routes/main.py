@@ -6,7 +6,7 @@ import hashlib
 import re
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from datetime import datetime, timedelta
-from sqlalchemy import text
+from sqlalchemy import text, cast, Numeric, func
 from sqlalchemy.exc import SQLAlchemyError
 from services.gems_service import (
     GemsServiceError,
@@ -1215,6 +1215,29 @@ def p2p():
     if view not in ('available', 'mine', 'past', 'post') or intent not in ('all', 'buy', 'sell'):
         return 'Choose an available marketplace view and Buy HNS or Sell HNS.', 400
     selected_payment_asset = request.args.get('payment_asset', '').strip()
+    filter_error = ''
+    sort = request.args.get('sort', 'newest')
+    if sort not in ('newest', 'rate_asc', 'rate_desc'):
+        filter_error = 'Choose newest, lowest rate or highest rate.'
+        sort = 'newest'
+    min_hns = request.args.get('min_hns', '').strip()
+    max_hns = request.args.get('max_hns', '').strip()
+    bounds = []
+    for raw in (min_hns, max_hns):
+        if not raw:
+            bounds.append(None)
+            continue
+        if len(raw) > 80 or not re.fullmatch(r'\d+(?:\.\d{1,6})?', raw) or Decimal(raw) >= Decimal('1e16'):
+            filter_error = 'Amount filters must be plain non-negative HNS amounts below 10000000000000000, with at most 6 decimals.'
+            bounds.append(None)
+            continue
+        bounds.append(Decimal(raw))
+    if all(bound is not None for bound in bounds) and bounds[0] > bounds[1]:
+        filter_error = 'Minimum HNS amount must not exceed the maximum.'
+    sort_notice = ''
+    if sort != 'newest' and (not selected_payment_asset or intent == 'all'):
+        sort = 'newest'
+        sort_notice = 'Showing newest first. Choose Buy HNS or Sell HNS and one payment asset + network to compare rates.'
     available = P2POffer.available_clause()
     query = P2POffer.query.filter(available) if view != 'past' else P2POffer.query.filter(
         (P2POffer.status.in_(['matched', 'canceled'])) |
@@ -1236,7 +1259,20 @@ def p2p():
     pagination = None
     offers = []
     if view in ('available', 'past'):
-        pagination = query.order_by(P2POffer.created_at.desc(), P2POffer.id.desc()).paginate(per_page=24)
+        if filter_error:
+            query = query.filter(db.false())
+        # PostgreSQL NUMERIC keeps exact decimal strings exact; never sort rates
+        # lexicographically or convert payment routes into a common currency.
+        amount = func.coalesce(cast(P2POffer.amount_hns_exact, Numeric(38, 18)), P2POffer.amount_hns)
+        if bounds[0] is not None:
+            query = query.filter(amount >= bounds[0])
+        if bounds[1] is not None:
+            query = query.filter(amount <= bounds[1])
+        ordering = []
+        if sort != 'newest':
+            price = func.coalesce(cast(P2POffer.price_quote_per_hns, Numeric(38, 18)), P2POffer.price_btc_per_hns)
+            ordering.append(price.asc() if sort == 'rate_asc' else price.desc())
+        pagination = query.order_by(*ordering, P2POffer.created_at.desc(), P2POffer.id.desc()).paginate(per_page=24)
         offers = pagination.items
     my_trades = []
     current_price = Decimal(str(_current_hns_btc_price() if view == 'post' else 0)).quantize(Decimal('0.000000000001'), rounding=ROUND_HALF_UP)
@@ -1255,9 +1291,12 @@ def p2p():
         current_price=current_price,
         selected_payment_asset=selected_payment_asset,
         marketplace_view=view, intent=intent, pagination=pagination,
+        sort=sort, sort_notice=sort_notice, min_hns=min_hns, max_hns=max_hns, filter_error=filter_error,
         available_count=P2POffer.query.filter(available).count(),
     ))
     response.headers['Cache-Control'] = 'no-store, private'
+    if filter_error:
+        response.status_code = 400
     return response
 
 
@@ -1339,19 +1378,36 @@ def confirm_p2p_offer_availability(offer_id):
     return redirect(url_for('main.p2p_offer_details', offer_id=offer_id))
 
 
+def _render_p2p_post(values, review=None, status=200):
+    """Keep failed/edited inputs in the response, never in cookies or public URLs."""
+    response = current_app.make_response((render_template(
+        'p2p.html', offers=[], my_trades=[], pagination=None,
+        marketplace_view='post', intent='all', selected_payment_asset='',
+        current_price=Decimal(str(_current_hns_btc_price())),
+        available_count=P2POffer.query.filter(P2POffer.available_clause()).count(),
+        form_values=values, offer_review=review, form_error=status >= 400,
+    ), status))
+    response.headers['Cache-Control'] = 'no-store, private'
+    return response
+
+
 @main_bp.route('/p2p/offers', methods=['POST'])
 def create_p2p_offer():
     from services.listing_inquiries import new_listing_chat_choice
+    fields = ('side', 'amount_hns', 'price', 'payment_asset', 'expiry',
+              'gems_stake', 'payment_method', 'notes',
+              'inquiry_setting_present', 'allow_pretrade_chat')
+    values = {key: request.form[key] for key in fields if key in request.form}
+    action = request.form.get('_form_action', 'publish')
+    if action == 'edit':
+        return _render_p2p_post(values)
+    if action not in ('review', 'publish'):
+        return 'Choose review or publish.', 400
     try:
         allow_pretrade_chat = new_listing_chat_choice(request.form)
     except ValueError as exc:
         flash(str(exc), 'error')
-        return redirect(url_for('main.p2p', view='post'))
-    try:
-        user = _ensure_session_user()
-    except RuntimeError:
-        flash('Could not start a guest session. Please try again.', 'error')
-        return redirect(url_for('main.p2p', view='post'))
+        return _render_p2p_post(values, status=400)
 
     side = request.form.get('side')
     amount_hns = request.form.get('amount_hns')
@@ -1366,27 +1422,43 @@ def create_p2p_offer():
         expires_at = _offer_expiry(request.form.get('expiry', 'never'), confirmed_at)
     except ValueError as exc:
         flash(str(exc), 'error')
-        return redirect(url_for('main.p2p', view='post'))
+        return _render_p2p_post(values, status=400)
 
     if side not in ('buy', 'sell'):
         flash('Choose whether you want to buy or sell HNS.', 'error')
-        return redirect(url_for('main.p2p', view='post'))
+        return _render_p2p_post(values, status=400)
     try:
         amount_value, price_value, _total = parse_offer_amounts(amount_hns, price, payment_asset_id)
     except (ValueError, InvalidOperation, TypeError) as exc:
         flash(f'Offer not created: {exc}', 'error')
-        return redirect(url_for('main.p2p', view='post'))
+        return _render_p2p_post(values, status=400)
 
     if gems_stake is None or gems_stake < 0:
         flash('Gems bond must be a non-negative whole number.', 'error')
-        return redirect(url_for('main.p2p', view='post'))
+        return _render_p2p_post(values, status=400)
+
+    if action == 'review':
+        asset = get_payment_asset(payment_asset_id)
+        review = dict(amount=format_decimal(amount_value), total=format_decimal(_total),
+                      price=format_decimal(price_value), asset=asset, side=side,
+                      gems=gems_stake, payment_method=payment_method,
+                      expiry=request.form.get('expiry', 'never'),
+                      allow_questions=allow_pretrade_chat)
+        return _render_p2p_post(values, review=review)
+
+    # Review and edit never create an account, offer, bond or wallet request.
+    try:
+        user = _ensure_session_user()
+    except RuntimeError:
+        flash('Could not start a guest session. Please try again.', 'error')
+        return _render_p2p_post(values, status=400)
 
     if not _gems_allowed_or_flash(gems_stake):
-        return redirect(url_for('main.p2p', view='post'))
+        return _render_p2p_post(values, status=400)
 
     if gems_stake and gems_stake > 0 and not is_wallet_service_configured():
         flash('A Gems bond cannot be posted while the GFAVIP wallet service is unavailable. Use no bond or try again later.', 'error')
-        return redirect(url_for('main.p2p', view='post'))
+        return _render_p2p_post(values, status=400)
 
     offer = None
     bond_locked = False
@@ -1441,7 +1513,7 @@ def create_p2p_offer():
                         'Enter 0 to post a normal P2P offer without a Gems bond.',
                     ],
                 }, 'gems_error')
-                return redirect(url_for('main.p2p', view='post'))
+                return _render_p2p_post(values, status=400)
 
             bond_locked = True
             offer.status = 'open'
@@ -1489,7 +1561,7 @@ def create_p2p_offer():
         else:
             flash('Error creating P2P offer. Please check the details and try again.', 'error')
 
-    return redirect(url_for('main.p2p', view='post'))
+    return _render_p2p_post(values, status=400)
 
 @main_bp.route('/p2p/offers/<int:offer_id>/accept', methods=['POST'])
 def accept_p2p_offer(offer_id):

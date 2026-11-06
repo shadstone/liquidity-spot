@@ -1,0 +1,39 @@
+{% macro links(mobile=false) %}
+<a href="{{ url_for('main.p2p') }}" {% if request.endpoint == 'main.p2p' and request.args.get('view', 'available') == 'available' %}aria-current="page"{% endif %}>Marketplace</a>
+<a href="{{ url_for('main.p2p', view='mine') }}" {% if request.endpoint == 'main.p2p' and request.args.get('view') == 'mine' %}aria-current="page"{% endif %}>My trades{% if nav_notification_count %} <span class="text-gfa-light">({{ nav_notification_count }} updates)</span>{% endif %}</a>
+<a href="{{ url_for('main.p2p', view='post') }}" class="rounded-lg bg-gfa-light px-4 font-bold text-gfa-dark hover:bg-white">Post an offer</a>
+<details class="relative">
+    <summary class="cursor-pointer">More</summary>
+    <div class="{{ '' if mobile else 'absolute right-0 top-full z-50 w-64' }} rounded-lg border border-gfa-grey/20 bg-black p-3 shadow-xl">
+        {% if session.get('user_id') %}<p class="break-words px-2 py-3 text-sm text-gfa-grey">Signed in as {{ session.get('username', 'user') }}{% if current_user %} · {{ current_user.gems_balance }} Gems{% endif %}</p>{% endif %}
+        <a href="{{ url_for('agent_docs.agent_guide') }}">AI assistant setup guide</a>
+        {% if session.get('user_id') %}
+        <a href="{{ url_for('agents.workspace') }}">Trading assistant</a>
+        <a href="{{ url_for('inquiries.inbox') }}">Private inquiries{% if nav_inquiry_unread_count|default(0) %} <span aria-label="{{ nav_inquiry_unread_count }} unread inquiry messages">({{ nav_inquiry_unread_count }} unread)</span>{% endif %}</a>
+        <a href="{{ url_for('main.dashboard') }}">Dashboard &amp; notifications</a>
+        <a href="{{ url_for('main.profile') }}">Profile</a>
+        <a href="{{ url_for('main.activity') }}">Activity</a>
+        {% if session.get('auth_method') == 'guest' %}<a href="{{ url_for('auth.guest_recovery') }}">Guest Recovery Key</a><a href="{{ url_for('auth.login') }}">Connect GFAVIP for Gems</a>{% endif %}
+        {% if session.get('tier') == 'team' %}<a href="{{ url_for('admin.credit') }}">Admin</a>{% endif %}
+        {% endif %}
+        <a href="{{ url_for('main.tutorial') }}">Trading tutorial</a>
+        <a href="{{ url_for('main.gems_guide') }}">What are Gems?</a>
+        <a href="{{ url_for('main.opensource') }}">Open Source</a>
+        <hr class="my-2 border-gfa-grey/20">
+        <a href="{{ url_for('main.maker_mode') }}">Maker Mode · preview</a>
+        <a href="{{ url_for('main.orders') }}">Atomic Swaps · experimental</a>
+        {% if session.get('user_id') %}<a href="{{ url_for('auth.logout') }}" class="text-red-300">Logout</a>{% else %}<a href="{{ url_for('auth.login') }}">Optional GFAVIP Login</a>{% endif %}
+    </div>
+</details>
+{% endmacro %}
+<nav class="site-navigation bg-black/20 p-4" aria-label="Main navigation">
+    <div class="container mx-auto flex items-center justify-between gap-4">
+        <a href="{{ url_for('main.p2p') }}" class="flex min-w-0 items-center gap-2 text-xl font-bold text-gfa-light">
+            <img src="{{ url_for('static', filename='img/liquidity-spot.png') }}" alt="" class="h-10 w-10 shrink-0">Liquidity.spot
+        </a>
+        <button id="mobile-menu-btn" type="button" aria-label="Open navigation" aria-controls="mobile-menu" aria-expanded="false" class="rounded border border-gfa-light/50 px-3 text-gfa-light lg:hidden" hidden>Menu</button>
+        <div class="hidden items-center gap-6 lg:flex">{{ links() }}</div>
+    </div>
+    <div id="mobile-menu" class="container mx-auto mt-4 space-y-2 rounded-lg border border-gfa-grey/20 bg-black/80 p-4 lg:hidden">{{ links(true) }}</div>
+</nav>
+<script src="{{ url_for('static', filename='js/navigation.js') }}" defer></script>

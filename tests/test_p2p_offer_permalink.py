@@ -187,7 +187,7 @@ class P2POfferPermalinkTests(unittest.TestCase):
             response = self._post_bonded_offer(maker, follow_redirects=True)
 
         body = response.get_data(as_text=True)
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 400)
         self.assertIn('Your Gems bond could not be locked', body)
         self.assertIn('Offer #1 was not posted', body)
         self.assertIn('You need 2 Gems available', body)
